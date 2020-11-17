@@ -24,10 +24,17 @@ def client_instance(keyfile,group_id ):
         ri_data = json.load(ri)
     instance_id = ri_data["Instances"][0]["InstanceId"]
     ### get instance IPv4 ###
-    describe_instances = "aws ec2 describe-instances --instance-ids "+instance_id+" --query 'Reservations[*].Instances[*].PublicIpAddress' --output text > ipv4.txt"
+    describe_instances = "aws ec2 describe-instances --instance-ids "+instance_id+"> describe_instances.json"
     os.system(describe_instances)
-    ip_file = open("./ipv4.txt")
-    ipv4 = ip_file.readline().rstrip('\n')
+    with open('./describe_instances.json') as di:
+        di_data = json.load(di)
+    while(di_data['Reservations'][0]['Instances'][0]['State']['Name'] == 'pending'):
+        print("EC2 instance still waiting")
+        time.sleep(5)
+        os.system(describe_instances)
+        with open('./describe_instances.json') as di:
+            di_data = json.load(di)
+    ipv4 = di_data['Reservations'][0]['Instances'][0]['NetworkInterfaces'][0]['Association']['PublicIp']
     ### scp transcode script to instance ###
     scp_srcipt = "scp -i "+keyfile+".pem ./minimoto_client.py  ubuntu@"+ipv4+":~/"
     os.system(scp_srcipt)
