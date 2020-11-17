@@ -15,54 +15,53 @@ def create_S3():
     create_s3_output = "aws s3api create-bucket --bucket unsw-9243-group22-minimoto-output-bucket --region us-east-1"
     os.system(create_s3_output)
 
-def client_instance(keyfile,group_id ):
-    ### launch client instance ###
-    run_instances = "aws ec2 run-instances --image-id ami-0f82752aa17ff8f5d --count 1 --instance-type t2.micro --key-name "+keyfile+" --security-group-ids "+group_id+" > run_instances.json"
-    os.system(run_instances)
-    ### get instance id ###
-    with open('./run_instances.json') as ri:
-        ri_data = json.load(ri)
-    instance_id = ri_data["Instances"][0]["InstanceId"]
-    ### get instance IPv4 ###
-    describe_instances = "aws ec2 describe-instances --instance-ids "+instance_id+"> describe_instances.json"
-    os.system(describe_instances)
-    with open('./describe_instances.json') as di:
-        di_data = json.load(di)
-    while(di_data['Reservations'][0]['Instances'][0]['State']['Name'] == 'pending'):
-        print("EC2 instance still waiting")
-        time.sleep(5)
-        os.system(describe_instances)
-        with open('./describe_instances.json') as di:
-            di_data = json.load(di)
-    ipv4 = di_data['Reservations'][0]['Instances'][0]['NetworkInterfaces'][0]['Association']['PublicIp']
-    ### scp transcode script to instance ###
-    scp_srcipt = "scp -i "+keyfile+".pem ./minimoto_client.py  ubuntu@"+ipv4+":~/"
-    os.system(scp_srcipt)
+def scp_files_to_ec2(keyfile,service_dns,client_dns,watchdog_dns):
+    print("wait for 1 min")
+    time.sleep(60)
+    print("start service scp")
+    service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./transcode.sh  ubuntu@"+service_dns+":~"
+    while os.system(service_scp_script)!= 0:
+        pass
+    print("service scp completed")
+    print("start client scp")
+    client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./minimoto_client ubuntu@"+client_dns+":~"
+    while os.system(client_scp_script) != 0:
+        pass
+    print("client scp completed")
+    print("start watchdog scp")
+    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./minimoto_watchdog ubuntu@"+watchdog_dns+":~"
+    while os.system(watchdog_scp_script) != 0:
+        pass
+    print("watchdog scp completed")
+    
 
-def service_instance(keyfile, group_id):
+
+def launch_instance(keyfile, group_id):
     ### aws launch service EC2 instance ###
-    run_instances = "aws ec2 run-instances --image-id ami-0f82752aa17ff8f5d --count 1 --instance-type t2.micro --key-name "+keyfile+" --security-group-ids "+group_id+" > run_instances.json"
+    run_instances = "aws ec2 run-instances --image-id ami-0f82752aa17ff8f5d --count 3 --instance-type t2.micro --key-name "+keyfile+" --security-group-ids "+group_id+" > run_instances.json"
+    ## service 
     os.system(run_instances)
-    ### get instance id ###
     with open('./run_instances.json') as ri:
         ri_data = json.load(ri)
-    instance_id = ri_data["Instances"][0]["InstanceId"]
-    ### get instance IPv4 ###
-    describe_instances = "aws ec2 describe-instances --instance-ids "+instance_id+"> describe_instances.json"
+    instances_collection = ri_data["Instances"][0]["InstanceId"] + ' ' + ri_data["Instances"][1]["InstanceId"] + ' ' + ri_data["Instances"][2]["InstanceId"]
+    ### get instance DNS###
+    describe_instances = "aws ec2 describe-instances --instance-ids "+ instances_collection +" > describe_instances.json"
     os.system(describe_instances)
     with open('./describe_instances.json') as di:
         di_data = json.load(di)
-    while(di_data['Reservations'][0]['Instances'][0]['State']['Name'] == 'pending'):
-        print("EC2 instance still waiting")
+    
+    while(di_data['Reservations'][0]['Instances'][0]['State']['Name'] != 'running' and 
+          di_data['Reservations'][0]['Instances'][1]['State']['Name'] != 'running' and
+          di_data['Reservations'][0]['Instances'][2]['State']['Name'] != 'running' ):
+        print("EC2 instances still waiting")
         time.sleep(5)
         os.system(describe_instances)
         with open('./describe_instances.json') as di:
             di_data = json.load(di)
-    ipv4 = di_data['Reservations'][0]['Instances'][0]['NetworkInterfaces'][0]['Association']['PublicIp']
-    ### scp transcode script to instance ###
-    scp_srcipt = "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "+keyfile+".pem ./transcode.sh  ubuntu@"+ipv4+":~/"
-    os.system(scp_srcipt)
-    return ipv4
+    service_dns_name = di_data['Reservations'][0]['Instances'][0]['NetworkInterfaces'][0]['Association']['PublicDnsName']
+    client_dns_name = di_data['Reservations'][0]['Instances'][1]['NetworkInterfaces'][0]['Association']['PublicDnsName']
+    watchdog_dns_name = di_data['Reservations'][0]['Instances'][2]['NetworkInterfaces'][0]['Association']['PublicDnsName']
+    return service_dns_name,client_dns_name,watchdog_dns_name
 
 def create_security_group():
     ### aws create security group ###
@@ -102,11 +101,12 @@ def main():
     # group_id = create_security_group()
     group_id = "sg-0df1222527f5d49a1"
     print("*** create_security_group complete")
-    print("*** start service_instance ")
-    service_ip = service_instance(keyfile,group_id)
-    print("*** service_instance completed")
-    # client_ip = client_instance(keyfile,group_id)
-    print("*** ip is {}".format(service_ip))
+    print("*** start launch_instance ")
+    s,c,w = launch_instance(keyfile,group_id)
+    print("*** service dns is {}".format(s))
+    print("*** client dns is {}".format(c))
+    print("*** watchdog dns is {}".format(w))
+    scp_files_to_ec2(keyfile,s,c,w)
     # print("*** start create_S3")
     # create_S3()
     # print("*** create_S3 completed")
