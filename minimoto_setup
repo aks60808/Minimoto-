@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+import os
+import json
+import sys
+import time
+def create_sqs():
+    ### create SQS ###
+    create_sqs = "aws sqs create-queue --queue-name unsw-9243-group22-minimoto-sqs.fifo --attributes FifoQueue=true --region us-east-1 > sqs.json"
+    os.system(create_sqs)
+
+def create_S3():
+    ### create S3 ###
+    create_s3_input = "aws s3api create-bucket --bucket unsw-9243-group22-minimoto-input-bucket --region us-east-1 "
+    os.system(create_s3_input)
+    create_s3_output = "aws s3api create-bucket --bucket unsw-9243-group22-minimoto-output-bucket --region us-east-1"
+    os.system(create_s3_output)
+
+def scp_files_to_ec2(keyfile,service_dns,client_dns,watchdog_dns):
+    print("wait for 1 min")
+    time.sleep(60)
+    print("start service scp")
+    service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./transcode.sh  ubuntu@"+service_dns+":~"
+    while os.system(service_scp_script)!= 0:
+        pass
+    print("service scp completed")
+    print("start client scp")
+    client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./minimoto_client ubuntu@"+client_dns+":~"
+    while os.system(client_scp_script) != 0:
+        pass
+    print("client scp completed")
+    print("start watchdog scp")
+    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./minimoto_watchdog ubuntu@"+watchdog_dns+":~"
+    while os.system(watchdog_scp_script) != 0:
+        pass
+    print("watchdog scp completed")
+    
+
+
+def launch_instance(keyfile, group_id):
+    ### aws launch service EC2 instance ###
+    run_instances = "aws ec2 run-instances --image-id ami-0f82752aa17ff8f5d --count 3 --instance-type t2.micro --key-name "+keyfile+" --security-group-ids "+group_id+" > run_instances.json"
+    ## service 
+    os.system(run_instances)
+    with open('./run_instances.json') as ri:
+        ri_data = json.load(ri)
+    instances_collection = ri_data["Instances"][0]["InstanceId"] + ' ' + ri_data["Instances"][1]["InstanceId"] + ' ' + ri_data["Instances"][2]["InstanceId"]
+    ### get instance DNS###
+    describe_instances = "aws ec2 describe-instances --instance-ids "+ instances_collection +" > describe_instances.json"
+    os.system(describe_instances)
+    with open('./describe_instances.json') as di:
+        di_data = json.load(di)
+    
+    while(di_data['Reservations'][0]['Instances'][0]['State']['Name'] != 'running' and 
+          di_data['Reservations'][0]['Instances'][1]['State']['Name'] != 'running' and
+          di_data['Reservations'][0]['Instances'][2]['State']['Name'] != 'running' ):
+        print("EC2 instances still waiting")
+        time.sleep(5)
+        os.system(describe_instances)
+        with open('./describe_instances.json') as di:
+            di_data = json.load(di)
+    service_dns_name = di_data['Reservations'][0]['Instances'][0]['NetworkInterfaces'][0]['Association']['PublicDnsName']
+    client_dns_name = di_data['Reservations'][0]['Instances'][1]['NetworkInterfaces'][0]['Association']['PublicDnsName']
+    watchdog_dns_name = di_data['Reservations'][0]['Instances'][2]['NetworkInterfaces'][0]['Association']['PublicDnsName']
+    return service_dns_name,client_dns_name,watchdog_dns_name
+
+def create_security_group():
+    ### aws create security group ###
+    security_group = "aws ec2 create-security-group --group-name unsw-9243-group22-minimoto-sg --description \"My security group\" > security_group.json"
+    os.system(security_group)
+    with open('./security_group.json') as sg:
+        sg_data = json.load(sg)
+
+    group_id = sg_data["GroupId"]
+    authorize_security_group  = "aws ec2 authorize-security-group-ingress --group-id "+group_id+" --protocol tcp --port 22 --cidr 0.0.0.0/0"
+    os.system(authorize_security_group)
+    # group_id = "sg-0be3be2208ad4b129"
+    return group_id
+
+def aws_configure(argv):
+    keyfile = sys.argv[1][:-4]
+    aws_access_key_id = sys.argv[2]
+    aws_secret_access_key = sys.argv[3]
+    aws_session_token = sys.argv[4]
+
+    os.system("echo [default] > ~/.aws/credentials")
+    os.system("echo aws_access_key_id="+ aws_access_key_id +" >> ~/.aws/credentials")
+    os.system("echo aws_secret_access_key="+ aws_secret_access_key +" >> ~/.aws/credentials")
+    os.system("echo aws_session_token="+ aws_session_token +" >> ~/.aws/credentials")
+    os.system("echo \"[default]\noutput = json\nregion = us-east-1\" > ~/.aws/config")
+    # os.system("cat ~/.aws/credentials")
+    return keyfile
+
+def main():
+    length = len(sys.argv)
+    if length < 5:
+        sys.exit("Usage: ./minimoto_setup keyfile aws_access_key_id aws_secret_access_key aws_session_token")
+    print("*** start AWS configure ")
+    keyfile = aws_configure(sys.argv)
+    print("*** AWS configure completed")
+    print("*** start create_security_group ")
+    # group_id = create_security_group()
+    group_id = "sg-0df1222527f5d49a1"
+    print("*** create_security_group complete")
+    print("*** start launch_instance ")
+    s,c,w = launch_instance(keyfile,group_id)
+    print("*** service dns is {}".format(s))
+    print("*** client dns is {}".format(c))
+    print("*** watchdog dns is {}".format(w))
+    scp_files_to_ec2(keyfile,s,c,w)
+    # print("*** start create_S3")
+    # create_S3()
+    # print("*** create_S3 completed")
+    # print("*** start create_sqs")
+    # create_sqs()
+    # print("*** create_sqs completed")
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+

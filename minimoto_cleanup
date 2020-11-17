@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+import os
+def delete_security_group_by_name():
+    command = "aws ec2 delete-security-group --group-name unsw-9243-group22-minimoto-sg"
+    os.system(command)
+    return 
+def delete_buckets():
+    command_1 = "aws s3api delete-bucket --bucket unsw-9243-group22-minimoto-input-bucket --region us-east-1"
+    command_2 = "aws s3api delete-bucket --bucket unsw-9243-group22-minimoto-output-bucket --region us-east-1"
+    os.system(command_1)
+    os.system(command_2)
+def delete_sqs():
+    with open('./sqs.json') as sqs_file:
+        sqs_data = json.load(sqs_file)
+    sqs_file.close()
+    sqs_url = sqs_data["IQueueUrl"]
+    command = "aws sqs delete-queue --queue-url " + sqs_url
+    os.system(command)
+
+delete_security_group_by_name()
+# delete_buckets()
+# delete_sqs()
