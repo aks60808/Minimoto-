@@ -3,6 +3,7 @@ import os
 import json
 import sys
 import time
+import subprocess
 def create_sqs():
     ### create SQS ###
     create_sqs = "aws sqs create-queue --queue-name unsw-9243-group22-minimoto-sqs.fifo --attributes FifoQueue=true --region us-east-1 > sqs.json"
@@ -21,26 +22,34 @@ def scp_files_to_ec2(keyfile,service_dns,client_dns,watchdog_dns):
     print("wait for 2 min")
     time.sleep(120)
     print("start service scp")
-    service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./transcode.sh  ubuntu@"+service_dns+":~ &>/dev/null"
+    service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./transcode.sh ~/.aws/credentials ~/.aws/config ubuntu@"+service_dns+":~ &>/dev/null"
     while os.system(service_scp_script)!= 0:
         pass
     print("service scp completed")
+    
     print("start client scp")
-    client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./minimoto_client ubuntu@"+client_dns+":~ &>/dev/null"
+    client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_client ~/.aws/credentials ~/.aws/config ubuntu@"+client_dns+":~ &>/dev/null"
     while os.system(client_scp_script) != 0:
         pass
     print("client scp completed")
     print("start watchdog scp")
-    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./minimoto_watchdog ubuntu@"+watchdog_dns+":~ &>/dev/null"
+    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_watchdog ~/.aws/credentials aws_config_script ~/.aws/config ubuntu@"+watchdog_dns+":~ &>/dev/null"
     while os.system(watchdog_scp_script) != 0:
         pass
     print("watchdog scp completed")
+
     
+def config_aws_on_instances(keyfile,service_dns,client_dns,watchdog_dns):
+    service_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+service_dns+" < ./aws_config_script"
+    subprocess.call(service_ssh_script, shell=True,stdout =subprocess.DEVNULL)
+    client_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+client_dns+" < ./aws_config_script"
+    subprocess.call(client_ssh_script, shell=True,stdout =subprocess.DEVNULL)
+    watchdog_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+watchdog_dns+" < ./aws_config_script"
+    subprocess.call(watchdog_ssh_script, shell=True,stdout =subprocess.DEVNULL)
 
-
-def launch_instance(keyfile, group_id):
+def launch_instance(keyname,group_id):
     ### aws launch service EC2 instance ###
-    run_instances = "aws ec2 run-instances --image-id ami-00ddb0e5626798373 --count 3 --instance-type t2.small --key-name "+keyfile+" --security-group-ids "+group_id+" > run_instances.json"
+    run_instances = "aws ec2 run-instances --image-id ami-0f82752aa17ff8f5d --count 3 --instance-type t2.small --key-name "+keyname+" --security-group-ids "+group_id+" > run_instances.json"
     ## service 
     os.system(run_instances)
     with open('./run_instances.json') as ri:
@@ -82,7 +91,8 @@ def create_security_group():
     return group_id
 
 def aws_configure(argv):
-    keyfile = sys.argv[1][:-4]
+    keyfile = sys.argv[1]
+    keyname = os.path.basename(keyfile)[:-4]
     aws_access_key_id = sys.argv[2]
     aws_secret_access_key = sys.argv[3]
     aws_session_token = sys.argv[4]
@@ -93,22 +103,24 @@ def aws_configure(argv):
     os.system("echo aws_session_token="+ aws_session_token +" >> ~/.aws/credentials")
     os.system("echo \"[default]\noutput = json\nregion = us-east-1\" > ~/.aws/config")
     # os.system("cat ~/.aws/credentials")
-    return keyfile
+    return keyfile,keyname
 
 def main():
     length = len(sys.argv)
     if length < 5:
         sys.exit("Usage: ./minimoto_setup keyfile aws_access_key_id aws_secret_access_key aws_session_token")
-    keyfile = aws_configure(sys.argv)
+    keyfile,keyname = aws_configure(sys.argv)
+    print(keyfile,keyname)
     # group_id = create_security_group()
     group_id = "sg-0df1222527f5d49a1"
-    service_dns_name,client_dns_name,watchdog_dns_name = launch_instance(keyfile,group_id)
+    service_dns_name,client_dns_name,watchdog_dns_name = launch_instance(keyname,group_id)
     scp_files_to_ec2(keyfile,service_dns_name,client_dns_name,watchdog_dns_name)
     # input_bucket_name,output_bucket_name = create_S3()
     # sqs_name = create_sqs()
     # print("SQS_REQUEST_QUEUE={}".format(sqs_name))
     # print("S3_BUCKET_INPUT=s3://{}".format(input_bucket_name))
     # print("S3_BUCKET_OUTPUT=s3://{}".format(output_bucket_name))
+    config_aws_on_instances(keyfile,service_dns_name,client_dns_name,watchdog_dns_name)
     print("CLIENT_USER=ubuntu")
     print("CLIENT_ADDR={}".format(client_dns_name))
     print("WATCHDOG_USER=ubuntu")
