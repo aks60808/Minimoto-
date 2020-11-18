@@ -2,118 +2,22 @@
     "Groups": [],
     "Instances": [
         {
-            "AmiLaunchIndex": 2,
-            "ImageId": "ami-0f82752aa17ff8f5d",
-            "InstanceId": "i-089ad1deac32ab41c",
-            "InstanceType": "t2.micro",
-            "KeyName": "MyKeyPair",
-            "LaunchTime": "2020-11-17T15:11:21.000Z",
-            "Monitoring": {
-                "State": "disabled"
-            },
-            "Placement": {
-                "AvailabilityZone": "us-east-1a",
-                "GroupName": "",
-                "Tenancy": "default"
-            },
-            "PrivateDnsName": "ip-172-31-37-254.ec2.internal",
-            "PrivateIpAddress": "172.31.37.254",
-            "ProductCodes": [],
-            "PublicDnsName": "",
-            "State": {
-                "Code": 0,
-                "Name": "pending"
-            },
-            "StateTransitionReason": "",
-            "SubnetId": "subnet-6ff84230",
-            "VpcId": "vpc-8118d2fc",
-            "Architecture": "x86_64",
-            "BlockDeviceMappings": [],
-            "ClientToken": "4d95c68c-a770-4994-8ea7-bb9de8bbda63",
-            "EbsOptimized": false,
-            "EnaSupport": true,
-            "Hypervisor": "xen",
-            "NetworkInterfaces": [
-                {
-                    "Attachment": {
-                        "AttachTime": "2020-11-17T15:11:21.000Z",
-                        "AttachmentId": "eni-attach-0454faab73ee28bf9",
-                        "DeleteOnTermination": true,
-                        "DeviceIndex": 0,
-                        "Status": "attaching"
-                    },
-                    "Description": "",
-                    "Groups": [
-                        {
-                            "GroupName": "unsw-9243-group22-minimoto-sg",
-                            "GroupId": "sg-0df1222527f5d49a1"
-                        }
-                    ],
-                    "Ipv6Addresses": [],
-                    "MacAddress": "0e:c2:48:ce:67:ef",
-                    "NetworkInterfaceId": "eni-05d383d2bc014cd6a",
-                    "OwnerId": "071520043157",
-                    "PrivateDnsName": "ip-172-31-37-254.ec2.internal",
-                    "PrivateIpAddress": "172.31.37.254",
-                    "PrivateIpAddresses": [
-                        {
-                            "Primary": true,
-                            "PrivateDnsName": "ip-172-31-37-254.ec2.internal",
-                            "PrivateIpAddress": "172.31.37.254"
-                        }
-                    ],
-                    "SourceDestCheck": true,
-                    "Status": "in-use",
-                    "SubnetId": "subnet-6ff84230",
-                    "VpcId": "vpc-8118d2fc",
-                    "InterfaceType": "interface"
-                }
-            ],
-            "RootDeviceName": "/dev/sda1",
-            "RootDeviceType": "ebs",
-            "SecurityGroups": [
-                {
-                    "GroupName": "unsw-9243-group22-minimoto-sg",
-                    "GroupId": "sg-0df1222527f5d49a1"
-                }
-            ],
-            "SourceDestCheck": true,
-            "StateReason": {
-                "Code": "pending",
-                "Message": "pending"
-            },
-            "VirtualizationType": "hvm",
-            "CpuOptions": {
-                "CoreCount": 1,
-                "ThreadsPerCore": 1
-            },
-            "CapacityReservationSpecification": {
-                "CapacityReservationPreference": "open"
-            },
-            "MetadataOptions": {
-                "State": "pending",
-                "HttpTokens": "optional",
-                "HttpPutResponseHopLimit": 1,
-                "HttpEndpoint": "enabled"
-            }
-        },
-        {
             "AmiLaunchIndex": 0,
-            "ImageId": "ami-0f82752aa17ff8f5d",
-            "InstanceId": "i-06fbe1ecd42ece3a6",
-            "InstanceType": "t2.micro",
+            "ImageId": "ami-00ddb0e5626798373",
+            "InstanceId": "i-097d1cfa0d0d2c544",
+            "InstanceType": "t2.small",
             "KeyName": "MyKeyPair",
-            "LaunchTime": "2020-11-17T15:11:21.000Z",
+            "LaunchTime": "2020-11-18T03:37:42.000Z",
             "Monitoring": {
                 "State": "disabled"
             },
             "Placement": {
-                "AvailabilityZone": "us-east-1a",
+                "AvailabilityZone": "us-east-1d",
                 "GroupName": "",
                 "Tenancy": "default"
             },
-            "PrivateDnsName": "ip-172-31-44-249.ec2.internal",
-            "PrivateIpAddress": "172.31.44.249",
+            "PrivateDnsName": "ip-172-31-17-50.ec2.internal",
+            "PrivateIpAddress": "172.31.17.50",
             "ProductCodes": [],
             "PublicDnsName": "",
             "State": {
@@ -121,19 +25,19 @@
                 "Name": "pending"
             },
             "StateTransitionReason": "",
-            "SubnetId": "subnet-6ff84230",
+            "SubnetId": "subnet-071b524a",
             "VpcId": "vpc-8118d2fc",
             "Architecture": "x86_64",
             "BlockDeviceMappings": [],
-            "ClientToken": "4d95c68c-a770-4994-8ea7-bb9de8bbda63",
+            "ClientToken": "cf0b252d-f88d-437c-ad7f-4b9b972b8f61",
             "EbsOptimized": false,
             "EnaSupport": true,
             "Hypervisor": "xen",
             "NetworkInterfaces": [
                 {
                     "Attachment": {
-                        "AttachTime": "2020-11-17T15:11:20.000Z",
-                        "AttachmentId": "eni-attach-02592ed96f6f024fb",
+                        "AttachTime": "2020-11-18T03:37:42.000Z",
+                        "AttachmentId": "eni-attach-00c5f5c6f6902df6f",
                         "DeleteOnTermination": true,
                         "DeviceIndex": 0,
                         "Status": "attaching"
@@ -146,21 +50,21 @@
                         }
                     ],
                     "Ipv6Addresses": [],
-                    "MacAddress": "0e:0e:7c:d2:d9:25",
-                    "NetworkInterfaceId": "eni-008b04f4197c53df7",
+                    "MacAddress": "0a:70:d2:ce:55:c9",
+                    "NetworkInterfaceId": "eni-0b06274bdb9817e71",
                     "OwnerId": "071520043157",
-                    "PrivateDnsName": "ip-172-31-44-249.ec2.internal",
-                    "PrivateIpAddress": "172.31.44.249",
+                    "PrivateDnsName": "ip-172-31-17-50.ec2.internal",
+                    "PrivateIpAddress": "172.31.17.50",
                     "PrivateIpAddresses": [
                         {
                             "Primary": true,
-                            "PrivateDnsName": "ip-172-31-44-249.ec2.internal",
-                            "PrivateIpAddress": "172.31.44.249"
+                            "PrivateDnsName": "ip-172-31-17-50.ec2.internal",
+                            "PrivateIpAddress": "172.31.17.50"
                         }
                     ],
                     "SourceDestCheck": true,
                     "Status": "in-use",
-                    "SubnetId": "subnet-6ff84230",
+                    "SubnetId": "subnet-071b524a",
                     "VpcId": "vpc-8118d2fc",
                     "InterfaceType": "interface"
                 }
@@ -195,21 +99,21 @@
         },
         {
             "AmiLaunchIndex": 1,
-            "ImageId": "ami-0f82752aa17ff8f5d",
-            "InstanceId": "i-05f7fd55720f2256e",
-            "InstanceType": "t2.micro",
+            "ImageId": "ami-00ddb0e5626798373",
+            "InstanceId": "i-002088eda7ccbc5de",
+            "InstanceType": "t2.small",
             "KeyName": "MyKeyPair",
-            "LaunchTime": "2020-11-17T15:11:21.000Z",
+            "LaunchTime": "2020-11-18T03:37:42.000Z",
             "Monitoring": {
                 "State": "disabled"
             },
             "Placement": {
-                "AvailabilityZone": "us-east-1a",
+                "AvailabilityZone": "us-east-1d",
                 "GroupName": "",
                 "Tenancy": "default"
             },
-            "PrivateDnsName": "ip-172-31-45-109.ec2.internal",
-            "PrivateIpAddress": "172.31.45.109",
+            "PrivateDnsName": "ip-172-31-28-68.ec2.internal",
+            "PrivateIpAddress": "172.31.28.68",
             "ProductCodes": [],
             "PublicDnsName": "",
             "State": {
@@ -217,19 +121,19 @@
                 "Name": "pending"
             },
             "StateTransitionReason": "",
-            "SubnetId": "subnet-6ff84230",
+            "SubnetId": "subnet-071b524a",
             "VpcId": "vpc-8118d2fc",
             "Architecture": "x86_64",
             "BlockDeviceMappings": [],
-            "ClientToken": "4d95c68c-a770-4994-8ea7-bb9de8bbda63",
+            "ClientToken": "cf0b252d-f88d-437c-ad7f-4b9b972b8f61",
             "EbsOptimized": false,
             "EnaSupport": true,
             "Hypervisor": "xen",
             "NetworkInterfaces": [
                 {
                     "Attachment": {
-                        "AttachTime": "2020-11-17T15:11:20.000Z",
-                        "AttachmentId": "eni-attach-01610513028bceeaf",
+                        "AttachTime": "2020-11-18T03:37:42.000Z",
+                        "AttachmentId": "eni-attach-05c0bbe1b85ef644b",
                         "DeleteOnTermination": true,
                         "DeviceIndex": 0,
                         "Status": "attaching"
@@ -242,21 +146,117 @@
                         }
                     ],
                     "Ipv6Addresses": [],
-                    "MacAddress": "0e:f4:9b:c5:27:17",
-                    "NetworkInterfaceId": "eni-0ba8819112ecdcd6d",
+                    "MacAddress": "0a:2c:e6:e7:ba:ad",
+                    "NetworkInterfaceId": "eni-00a1d2cd474e8a71a",
                     "OwnerId": "071520043157",
-                    "PrivateDnsName": "ip-172-31-45-109.ec2.internal",
-                    "PrivateIpAddress": "172.31.45.109",
+                    "PrivateDnsName": "ip-172-31-28-68.ec2.internal",
+                    "PrivateIpAddress": "172.31.28.68",
                     "PrivateIpAddresses": [
                         {
                             "Primary": true,
-                            "PrivateDnsName": "ip-172-31-45-109.ec2.internal",
-                            "PrivateIpAddress": "172.31.45.109"
+                            "PrivateDnsName": "ip-172-31-28-68.ec2.internal",
+                            "PrivateIpAddress": "172.31.28.68"
                         }
                     ],
                     "SourceDestCheck": true,
                     "Status": "in-use",
-                    "SubnetId": "subnet-6ff84230",
+                    "SubnetId": "subnet-071b524a",
+                    "VpcId": "vpc-8118d2fc",
+                    "InterfaceType": "interface"
+                }
+            ],
+            "RootDeviceName": "/dev/sda1",
+            "RootDeviceType": "ebs",
+            "SecurityGroups": [
+                {
+                    "GroupName": "unsw-9243-group22-minimoto-sg",
+                    "GroupId": "sg-0df1222527f5d49a1"
+                }
+            ],
+            "SourceDestCheck": true,
+            "StateReason": {
+                "Code": "pending",
+                "Message": "pending"
+            },
+            "VirtualizationType": "hvm",
+            "CpuOptions": {
+                "CoreCount": 1,
+                "ThreadsPerCore": 1
+            },
+            "CapacityReservationSpecification": {
+                "CapacityReservationPreference": "open"
+            },
+            "MetadataOptions": {
+                "State": "pending",
+                "HttpTokens": "optional",
+                "HttpPutResponseHopLimit": 1,
+                "HttpEndpoint": "enabled"
+            }
+        },
+        {
+            "AmiLaunchIndex": 2,
+            "ImageId": "ami-00ddb0e5626798373",
+            "InstanceId": "i-00d07cc7c3aa77784",
+            "InstanceType": "t2.small",
+            "KeyName": "MyKeyPair",
+            "LaunchTime": "2020-11-18T03:37:42.000Z",
+            "Monitoring": {
+                "State": "disabled"
+            },
+            "Placement": {
+                "AvailabilityZone": "us-east-1d",
+                "GroupName": "",
+                "Tenancy": "default"
+            },
+            "PrivateDnsName": "ip-172-31-16-39.ec2.internal",
+            "PrivateIpAddress": "172.31.16.39",
+            "ProductCodes": [],
+            "PublicDnsName": "",
+            "State": {
+                "Code": 0,
+                "Name": "pending"
+            },
+            "StateTransitionReason": "",
+            "SubnetId": "subnet-071b524a",
+            "VpcId": "vpc-8118d2fc",
+            "Architecture": "x86_64",
+            "BlockDeviceMappings": [],
+            "ClientToken": "cf0b252d-f88d-437c-ad7f-4b9b972b8f61",
+            "EbsOptimized": false,
+            "EnaSupport": true,
+            "Hypervisor": "xen",
+            "NetworkInterfaces": [
+                {
+                    "Attachment": {
+                        "AttachTime": "2020-11-18T03:37:42.000Z",
+                        "AttachmentId": "eni-attach-00022f141b06c6b6d",
+                        "DeleteOnTermination": true,
+                        "DeviceIndex": 0,
+                        "Status": "attaching"
+                    },
+                    "Description": "",
+                    "Groups": [
+                        {
+                            "GroupName": "unsw-9243-group22-minimoto-sg",
+                            "GroupId": "sg-0df1222527f5d49a1"
+                        }
+                    ],
+                    "Ipv6Addresses": [],
+                    "MacAddress": "0a:18:fa:d1:b7:9f",
+                    "NetworkInterfaceId": "eni-0e855979751b7b26e",
+                    "OwnerId": "071520043157",
+                    "PrivateDnsName": "ip-172-31-16-39.ec2.internal",
+                    "PrivateIpAddress": "172.31.16.39",
+                    "PrivateIpAddresses": [
+                        {
+                            "Primary": true,
+                            "PrivateDnsName": "ip-172-31-16-39.ec2.internal",
+                            "PrivateIpAddress": "172.31.16.39"
+                        }
+                    ],
+                    "SourceDestCheck": true,
+                    "Status": "in-use",
+                    "SubnetId": "subnet-071b524a",
                     "VpcId": "vpc-8118d2fc",
                     "InterfaceType": "interface"
                 }
@@ -291,5 +291,5 @@
         }
     ],
     "OwnerId": "071520043157",
-    "ReservationId": "r-0be89dc561ad8e7a9"
+    "ReservationId": "r-06181f67f3b0cac0e"
 }

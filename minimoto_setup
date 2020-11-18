@@ -7,29 +7,31 @@ def create_sqs():
     ### create SQS ###
     create_sqs = "aws sqs create-queue --queue-name unsw-9243-group22-minimoto-sqs.fifo --attributes FifoQueue=true --region us-east-1 > sqs.json"
     os.system(create_sqs)
+    return "tommy-unsw-9243-group22-minimoto-sqs.fifo"
 
 def create_S3():
     ### create S3 ###
-    create_s3_input = "aws s3api create-bucket --bucket unsw-9243-group22-minimoto-input-bucket --region us-east-1 "
+    create_s3_input = "aws s3api create-bucket --bucket tommy-unsw-9243-group22-minimoto-input-bucket --region us-east-1 > stdout.json"
     os.system(create_s3_input)
-    create_s3_output = "aws s3api create-bucket --bucket unsw-9243-group22-minimoto-output-bucket --region us-east-1"
+    create_s3_output = "aws s3api create-bucket --bucket tommy-unsw-9243-group22-minimoto-output-bucket --region us-east-1 >> stdout.json"
     os.system(create_s3_output)
+    return "tommy-unsw-9243-group22-minimoto-input-bucket","tommy-unsw-9243-group22-minimoto-output-bucket"
 
 def scp_files_to_ec2(keyfile,service_dns,client_dns,watchdog_dns):
-    print("wait for 1 min")
-    time.sleep(60)
+    print("wait for 2 min")
+    time.sleep(120)
     print("start service scp")
-    service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./transcode.sh  ubuntu@"+service_dns+":~"
+    service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./transcode.sh  ubuntu@"+service_dns+":~ &>/dev/null"
     while os.system(service_scp_script)!= 0:
         pass
     print("service scp completed")
     print("start client scp")
-    client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./minimoto_client ubuntu@"+client_dns+":~"
+    client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./minimoto_client ubuntu@"+client_dns+":~ &>/dev/null"
     while os.system(client_scp_script) != 0:
         pass
     print("client scp completed")
     print("start watchdog scp")
-    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./minimoto_watchdog ubuntu@"+watchdog_dns+":~"
+    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./minimoto_watchdog ubuntu@"+watchdog_dns+":~ &>/dev/null"
     while os.system(watchdog_scp_script) != 0:
         pass
     print("watchdog scp completed")
@@ -38,7 +40,7 @@ def scp_files_to_ec2(keyfile,service_dns,client_dns,watchdog_dns):
 
 def launch_instance(keyfile, group_id):
     ### aws launch service EC2 instance ###
-    run_instances = "aws ec2 run-instances --image-id ami-0f82752aa17ff8f5d --count 3 --instance-type t2.micro --key-name "+keyfile+" --security-group-ids "+group_id+" > run_instances.json"
+    run_instances = "aws ec2 run-instances --image-id ami-00ddb0e5626798373 --count 3 --instance-type t2.small --key-name "+keyfile+" --security-group-ids "+group_id+" > run_instances.json"
     ## service 
     os.system(run_instances)
     with open('./run_instances.json') as ri:
@@ -53,14 +55,17 @@ def launch_instance(keyfile, group_id):
     while(di_data['Reservations'][0]['Instances'][0]['State']['Name'] != 'running' and 
           di_data['Reservations'][0]['Instances'][1]['State']['Name'] != 'running' and
           di_data['Reservations'][0]['Instances'][2]['State']['Name'] != 'running' ):
-        print("EC2 instances still waiting")
+        # print("EC2 instances still waiting")
         time.sleep(5)
         os.system(describe_instances)
         with open('./describe_instances.json') as di:
             di_data = json.load(di)
     service_dns_name = di_data['Reservations'][0]['Instances'][0]['NetworkInterfaces'][0]['Association']['PublicDnsName']
+    service_instance_id = di_data['Reservations'][0]['Instances'][0]['InstanceId']
     client_dns_name = di_data['Reservations'][0]['Instances'][1]['NetworkInterfaces'][0]['Association']['PublicDnsName']
     watchdog_dns_name = di_data['Reservations'][0]['Instances'][2]['NetworkInterfaces'][0]['Association']['PublicDnsName']
+    create_tag_script ="aws ec2 create-tags --resources "+ service_instance_id+" --tags Key=Stack,Value=Minimoto_Service"
+    os.system(create_tag_script)
     return service_dns_name,client_dns_name,watchdog_dns_name
 
 def create_security_group():
@@ -94,25 +99,22 @@ def main():
     length = len(sys.argv)
     if length < 5:
         sys.exit("Usage: ./minimoto_setup keyfile aws_access_key_id aws_secret_access_key aws_session_token")
-    print("*** start AWS configure ")
     keyfile = aws_configure(sys.argv)
-    print("*** AWS configure completed")
-    print("*** start create_security_group ")
     # group_id = create_security_group()
     group_id = "sg-0df1222527f5d49a1"
-    print("*** create_security_group complete")
-    print("*** start launch_instance ")
-    s,c,w = launch_instance(keyfile,group_id)
-    print("*** service dns is {}".format(s))
-    print("*** client dns is {}".format(c))
-    print("*** watchdog dns is {}".format(w))
-    scp_files_to_ec2(keyfile,s,c,w)
-    # print("*** start create_S3")
-    # create_S3()
-    # print("*** create_S3 completed")
-    # print("*** start create_sqs")
-    # create_sqs()
-    # print("*** create_sqs completed")
+    service_dns_name,client_dns_name,watchdog_dns_name = launch_instance(keyfile,group_id)
+    scp_files_to_ec2(keyfile,service_dns_name,client_dns_name,watchdog_dns_name)
+    # input_bucket_name,output_bucket_name = create_S3()
+    # sqs_name = create_sqs()
+    # print("SQS_REQUEST_QUEUE={}".format(sqs_name))
+    # print("S3_BUCKET_INPUT=s3://{}".format(input_bucket_name))
+    # print("S3_BUCKET_OUTPUT=s3://{}".format(output_bucket_name))
+    print("CLIENT_USER=ubuntu")
+    print("CLIENT_ADDR={}".format(client_dns_name))
+    print("WATCHDOG_USER=ubuntu")
+    print("WATCHDOG_ADDR={}".format(watchdog_dns_name))
+    print("SERVICE_USER=ubuntu")
+    print("SERVICE_AMI=ami-0f82752aa17ff8f5d")
 if __name__ == "__main__":
     main()
 
