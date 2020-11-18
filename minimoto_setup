@@ -19,23 +19,25 @@ def create_S3():
     return "tommy-unsw-9243-group22-minimoto-input-bucket","tommy-unsw-9243-group22-minimoto-output-bucket"
 
 def scp_files_to_ec2(keyfile,service_dns,client_dns,watchdog_dns):
-    print("wait for 2 min")
-    time.sleep(120)
+    print("wait for 30s")
+    time.sleep(30)
     print("start service scp")
-    service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./transcode.sh ~/.aws/credentials ~/.aws/config ubuntu@"+service_dns+":~ &>/dev/null"
-    while os.system(service_scp_script)!= 0:
-        pass
+    service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./transcode.sh ~/.aws/credentials ~/.aws/config ubuntu@"+service_dns+":~ "
+    print(service_scp_script)
+    subprocess.call(service_scp_script, shell=True)
     print("service scp completed")
     
     print("start client scp")
-    client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_client ~/.aws/credentials ~/.aws/config ubuntu@"+client_dns+":~ &>/dev/null"
-    while os.system(client_scp_script) != 0:
-        pass
+    client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_client ~/.aws/credentials ~/.aws/config ubuntu@"+client_dns+":~ "
+    print(client_scp_script)
+    subprocess.call(client_scp_script, shell=True)
+
     print("client scp completed")
     print("start watchdog scp")
-    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_watchdog ~/.aws/credentials aws_config_script ~/.aws/config ubuntu@"+watchdog_dns+":~ &>/dev/null"
-    while os.system(watchdog_scp_script) != 0:
-        pass
+    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_watchdog ~/.aws/credentials aws_config_script ~/.aws/config ubuntu@"+watchdog_dns+":~ "
+    print(watchdog_scp_script)
+    subprocess.call(watchdog_scp_script, shell=True)
+
     print("watchdog scp completed")
 
     
@@ -96,7 +98,7 @@ def aws_configure(argv):
     aws_access_key_id = sys.argv[2]
     aws_secret_access_key = sys.argv[3]
     aws_session_token = sys.argv[4]
-
+    os.system("chmod 600 {}".format(keyfile))
     os.system("echo [default] > ~/.aws/credentials")
     os.system("echo aws_access_key_id="+ aws_access_key_id +" >> ~/.aws/credentials")
     os.system("echo aws_secret_access_key="+ aws_secret_access_key +" >> ~/.aws/credentials")
