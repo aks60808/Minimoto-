@@ -6,6 +6,7 @@ import time
 def create_sqs():
     ### create SQS ###
     create_sqs = "aws sqs create-queue --queue-name unsw-9243-group22-minimoto-sqs.fifo --attributes FifoQueue=true --region us-east-1 > sqs.json"
+    # aws sqs set-queue-attributes --queue-url https://sqs.us-east-1.amazonaws.com/112279482413/unsw-9243-group22-minimoto-sqs.fifo --attributes ContentBasedDeduplication=true
     os.system(create_sqs)
 
 def create_S3():
@@ -20,6 +21,9 @@ def scp_files_to_ec2(keyfile,service_dns,client_dns,watchdog_dns):
     time.sleep(60)
     print("start service scp")
     service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./transcode.sh  ubuntu@"+service_dns+":~"
+    while os.system(service_scp_script)!= 0:
+        pass
+    service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ~/.aws/credentials  ubuntu@"+service_dns+":~/credentials"
     while os.system(service_scp_script)!= 0:
         pass
     print("service scp completed")

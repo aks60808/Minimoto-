@@ -6,28 +6,30 @@ import os.path
 from os import path
 
 def upload_image(input_bucket):
-    
     upload = "aws s3 cp ./sample_images s3://"+input_bucket+"/ --recursive"
     os.system(upload)
+    print("upload images done")
+
+def send_request():
+    set_attribute = "aws sqs set-queue-attributes --queue-url https://sqs.us-east-1.amazonaws.com/112279482413/unsw-9243-group22-minimoto-sqs.fifo --attributes ContentBasedDeduplication=true"
+    os.system(set_attribute)
+    send = "aws sqs send-message --queue-url https://sqs.us-east-1.amazonaws.com/112279482413/unsw-9243-group22-minimoto-sqs.fifo  --message-body \"Hello from Angelina.\" --message-group-id \"transcode_message_queue\" >/dev/null"
+    os.system(send)
 
 def instance_configure():
 
-   os.system("sudo apt install unzip")
-   os.system("curl \"https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip\" -o \"awscliv2.zip\" > /dev/null")
-   os.system("unzip awscliv2.zip >/dev/null")
-   os.system("sudo ./aws/install > /dev/null")
+    os.system("sudo apt install unzip")
+    os.system("curl \"https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip\" -o \"awscliv2.zip\" > /dev/null")
+    os.system("unzip awscliv2.zip >/dev/null")
+    os.system("sudo ./aws/install > /dev/null")
 
     credential = open("./credentials")
     Lines = credential.readlines()
-#    if not path.exists("~/.aws"):
-#        os.system("mkdir ~/.aws")
+    if not path.exists("~/.aws"):
+        os.system("mkdir ~/.aws")
 
-    os.system("echo -n > ~/.aws/credentials")
-    for line in Lines:
-        line = line.rstrip("\n")
-        config = "echo "+ line +" >> ~/.aws/credentials"
-        print(config)
-        os.system(config)
+    os.system("mv ./credentials ~/.aws/credentials")
+    os.system("echo \"[default]\noutput = json\nregion = us-east-1\" > ~/.aws/config")
 
 
 def main():
