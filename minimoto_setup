@@ -27,9 +27,18 @@ def scp_files_to_ec2(keyfile,service_dns,client_dns,watchdog_dns):
     client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./minimoto_client ubuntu@"+client_dns+":~"
     while os.system(client_scp_script) != 0:
         pass
+    client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ~/.aws/credentials ubuntu@"+client_dns+":~/credentials"
+    while os.system(client_scp_script) != 0:
+        pass
     print("client scp completed")
     print("start watchdog scp")
     watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./minimoto_watchdog ubuntu@"+watchdog_dns+":~"
+    while os.system(watchdog_scp_script) != 0:
+        pass
+    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ~/.aws/credentials ubuntu@"+watchdog_dns+":~/credentials"
+    while os.system(watchdog_scp_script) != 0:
+        pass
+    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+".pem ./"+keyfile+".pem ubuntu@"+watchdog_dns+":~/"+keyfile+".pem"
     while os.system(watchdog_scp_script) != 0:
         pass
     print("watchdog scp completed")

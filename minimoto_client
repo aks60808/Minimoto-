@@ -2,13 +2,52 @@
 import os
 import json
 import sys
+import os.path
+from os import path
 
-def upload_image():
-    upload = "aws s3 cp ./simple_image s3://au.edu.unsw.transcode.input-bucket/"
+def upload_image(input_bucket):
+    
+    upload = "aws s3 cp ./sample_images s3://"+input_bucket+"/ --recursive"
     os.system(upload)
 
+def instance_configure():
+
+   os.system("sudo apt install unzip")
+   os.system("curl \"https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip\" -o \"awscliv2.zip\" > /dev/null")
+   os.system("unzip awscliv2.zip >/dev/null")
+   os.system("sudo ./aws/install > /dev/null")
+
+    credential = open("./credentials")
+    Lines = credential.readlines()
+#    if not path.exists("~/.aws"):
+#        os.system("mkdir ~/.aws")
+
+    os.system("echo -n > ~/.aws/credentials")
+    for line in Lines:
+        line = line.rstrip("\n")
+        config = "echo "+ line +" >> ~/.aws/credentials"
+        print(config)
+        os.system(config)
+
+
 def main():
-    upload_image()
+    length = len(sys.argv)
+    wait_flag = False
+    input_bucket = ""
+    output_bucket = ""
+    if length == 4 and sys.argv[1] == "[--wait]":
+        wait_flag = True
+        input_bucket = sys.argv[2]
+        output_bucket = sys.argv[3]
+    elif length == 3:
+        input_bucket = sys.argv[1]
+        output_bucket = sys.argv[2]
+    else:
+        sys.exit("Usage:./minimoto_client [--wait] input_bucket_path output_bucket_path")
+        
+    instance_configure()
+    upload_image(input_bucket)
 
 if __name__ == "__main__":
     main()
+
