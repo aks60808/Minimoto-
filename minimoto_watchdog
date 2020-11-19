@@ -1,15 +1,32 @@
 #!/usr/bin/env python3
 import subprocess
+import json
 from subprocess import Popen, PIPE
-keyfile = "Tommy.pem"
 dns = "ec2-54-242-47-30.compute-1.amazonaws.com"
+ls_find_keyfile = Popen("ls | grep .pem",stdout=subprocess.PIPE, stderr=None, shell=True)
+output, err = ls_find_keyfile.communicate()
+keyfile = output.decode().rstrip()
+service_instances_query = "aws ec2 describe-instances --query 'Reservations[*].Instances[*]' --filters Name=instance-state-name,Values=running Name=tag-value,Values=Minimoto_Service --output json"
 
-service_instances_query = "aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId]' --filters Name=instance-state-name,Values=running Name=tag-value,Values=Minimoto_Service --output text"
-cpu_usage_in_percentage = "mpstat 1 4 | grep \"Average:\""
-command = "ssh -o StrictHostKeyChecking=no -i "+keyfile+" ubuntu@"+dns+" " + cpu_usage_in_percentage
-ssh_to_service_instance = Popen(command,stdout=subprocess.PIPE, stderr=None, shell=True)
-output, err = ssh_to_service_instance.communicate()
-print(output.decode())
+
+aws_query_running_instances = Popen(service_instances_query,stdout=subprocess.PIPE, stderr=None, shell=True)
+output, err = aws_query_running_instances.communicate()
+output_json = json.loads(output.decode().rstrip())
+running_instances_list = output_json[0]
+idle_running_instance_list = []
+for instance in running_instances_list:
+    dns_name = instance['PublicDnsName']
+    cpu_command = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@" + dns_name + " mpstat 1 4 | grep \"Average:\" | awk '{ print $3 }'"
+    minitor_proc = Popen(cpu_command,stdout=subprocess.PIPE, stderr=None, shell=True)
+    output, err = minitor_proc.communicate()
+    cpu_usage_in_percentage = float(output.decode().rstrip())
+    if cpu_usage_in_percentage < 50:
+        idle_running_instance_list.append(instance['InstanceId'])
+count_of_idle_instance = len(idle_running_instance_list)
+length_of_sqs = 4
+instances_balance = int(count_of_idle_instance - length_of_sqs)
+if instances_balance < 0:
+    run_instances = "aws ec2 run-instances --image-id ami-0739f8cdb239fe9ae --count 3 --instance-type t2.small --key-name "+keyname+" --security-group-ids "+group_id+" > run_instances.json"
 # mpstat 2 2 | grep "Average:" | awk '{ print $3 }'
 
 # aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId]' --filters Name=instance-state-name,Values=running Name=tag-value,Values=Minimoto_Service

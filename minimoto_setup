@@ -4,96 +4,99 @@ import json
 import sys
 import time
 import subprocess
+from subprocess import Popen, PIPE
 def create_sqs():
     ### create SQS ###
-    create_sqs = "aws sqs create-queue --queue-name unsw-9243-group22-minimoto-sqs.fifo --attributes FifoQueue=true --region us-east-1 > sqs.json"
-    os.system(create_sqs)
-    return "tommy-unsw-9243-group22-minimoto-sqs.fifo"
+    create_sqs = "aws sqs create-queue --queue-name unsw-9243-group22-minimoto-sqs.fifo --attributes FifoQueue=true --region us-east-1"
+    create_sqs_proc = Popen(create_sqs,stdout=subprocess.PIPE, stderr=None, shell=True)
+    output, err = create_sqs_proc.communicate()
+    output_json = json.loads(output.decode().rstrip())
+    return "tommy-unsw-9243-group22-minimoto-sqs.fifo", output_json['QueueUrl']
 
 def create_S3():
     ### create S3 ###
-    create_s3_input = "aws s3api create-bucket --bucket tommy-unsw-9243-group22-minimoto-input-bucket --region us-east-1 > stdout.json"
-    os.system(create_s3_input)
-    create_s3_output = "aws s3api create-bucket --bucket tommy-unsw-9243-group22-minimoto-output-bucket --region us-east-1 >> stdout.json"
-    os.system(create_s3_output)
+    create_s3_input = "aws s3api create-bucket --bucket tommy-unsw-9243-group22-minimoto-input-bucket --region us-east-1"
+    subprocess.call(create_s3_input, shell=True,stdout =subprocess.DEVNULL)
+    create_s3_output = "aws s3api create-bucket --bucket tommy-unsw-9243-group22-minimoto-output-bucket --region us-east-1"
+    subprocess.call(create_s3_output, shell=True,stdout =subprocess.DEVNULL)
     return "tommy-unsw-9243-group22-minimoto-input-bucket","tommy-unsw-9243-group22-minimoto-output-bucket"
 
-def scp_files_to_ec2(keyfile,service_dns,client_dns,watchdog_dns):
-    print("wait for 30s")
-    time.sleep(30)
+def configure_service_instance(keyfile,service_dns):
     print("start service scp")
     service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./transcode.sh ~/.aws/credentials ~/.aws/config ubuntu@"+service_dns+":~ "
     print(service_scp_script)
-    subprocess.call(service_scp_script, shell=True)
+    subprocess.call(service_scp_script, shell=True,stdout =subprocess.DEVNULL)
     print("service scp completed")
-    
-    print("start client scp")
-    client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_client ~/.aws/credentials ~/.aws/config ubuntu@"+client_dns+":~ "
-    print(client_scp_script)
-    subprocess.call(client_scp_script, shell=True)
-
-    print("client scp completed")
-    print("start watchdog scp")
-    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_watchdog ~/.aws/credentials aws_config_script ~/.aws/config ubuntu@"+watchdog_dns+":~ "
-    print(watchdog_scp_script)
-    subprocess.call(watchdog_scp_script, shell=True)
-
-    print("watchdog scp completed")
-
-    
-def config_aws_on_instances(keyfile,service_dns,client_dns,watchdog_dns):
     print("*** start configure service")
     service_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+service_dns+" < ./aws_config_script_service"
     subprocess.call(service_ssh_script, shell=True,stdout =subprocess.DEVNULL)
+    print("*** configure service completed")
+
+def configure_client_instance(keyfile,client_dns):
+    print("start client scp")
+    client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_client ~/.aws/credentials ~/.aws/config ubuntu@"+client_dns+":~ "
+    print(client_scp_script)
+    subprocess.call(client_scp_script, shell=True,stdout =subprocess.DEVNULL)
+    print("client scp completed")
     print("*** start configure client")
     client_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+client_dns+" < ./aws_config_script"
     subprocess.call(client_ssh_script, shell=True,stdout =subprocess.DEVNULL)
+    print("*** configure client completed")
+
+def configure_watchdog_instance(keyfile,watchdog_dns):
+    print("start watchdog scp")
+    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_watchdog ~/.aws/credentials ./aws_config_script_service ./minimoto_config.json ~/.aws/config ubuntu@"+watchdog_dns+":~ "
+    print(watchdog_scp_script)
+    subprocess.call(watchdog_scp_script, shell=True,stdout =subprocess.DEVNULL)
+    print("watchdog scp completed")
     print("*** start configure watchdog")
     watchdog_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+watchdog_dns+" < ./aws_config_script"
     subprocess.call(watchdog_ssh_script, shell=True,stdout =subprocess.DEVNULL)
+    print("*** configure watchdog completed")
+
 
 def launch_instance(keyname,group_id):
     ### aws launch service EC2 instance ###
-    run_instances = "aws ec2 run-instances --image-id ami-0739f8cdb239fe9ae --count 3 --instance-type t2.small --key-name "+keyname+" --security-group-ids "+group_id+" > run_instances.json"
+    launch_instances = "aws ec2 run-instances --image-id ami-0739f8cdb239fe9ae --count 3 --instance-type t2.small --key-name "+keyname+" --security-group-ids "+group_id
     ## service 
-    os.system(run_instances)
-    with open('./run_instances.json') as ri:
-        ri_data = json.load(ri)
+    launch_instances_proc = Popen(launch_instances,stdout=subprocess.PIPE, stderr=None, shell=True)
+    output, err = launch_instances_proc.communicate()
+    ri_data = json.loads(output.decode().rstrip())
+
     instances_collection = ri_data["Instances"][0]["InstanceId"] + ' ' + ri_data["Instances"][1]["InstanceId"] + ' ' + ri_data["Instances"][2]["InstanceId"]
     ### get instance DNS###
-    describe_instances = "aws ec2 describe-instances --instance-ids "+ instances_collection +" > describe_instances.json"
-    os.system(describe_instances)
-    with open('./describe_instances.json') as di:
-        di_data = json.load(di)
-    
+    describe_instances = "aws ec2 describe-instances --instance-ids "+ instances_collection 
+    describe_instances_proc = Popen(describe_instances,stdout=subprocess.PIPE, stderr=None, shell=True)
+    output, err = describe_instances_proc.communicate()
+    di_data = json.loads(output.decode().rstrip())
     while(di_data['Reservations'][0]['Instances'][0]['State']['Name'] != 'running' and 
           di_data['Reservations'][0]['Instances'][1]['State']['Name'] != 'running' and
           di_data['Reservations'][0]['Instances'][2]['State']['Name'] != 'running' ):
         # print("EC2 instances still waiting")
         time.sleep(5)
-        os.system(describe_instances)
-        with open('./describe_instances.json') as di:
-            di_data = json.load(di)
+        describe_instances_proc = Popen(describe_instances,stdout=subprocess.PIPE, stderr=None, shell=True)
+        output, err = describe_instances_proc.communicate()
+        di_data = json.loads(output.decode().rstrip())
     service_dns_name = di_data['Reservations'][0]['Instances'][0]['NetworkInterfaces'][0]['Association']['PublicDnsName']
     service_instance_id = di_data['Reservations'][0]['Instances'][0]['InstanceId']
     client_dns_name = di_data['Reservations'][0]['Instances'][1]['NetworkInterfaces'][0]['Association']['PublicDnsName']
     watchdog_dns_name = di_data['Reservations'][0]['Instances'][2]['NetworkInterfaces'][0]['Association']['PublicDnsName']
-    create_tag_script ="aws ec2 create-tags --resources "+ instances_collection+" --tags Key=Stack,Value=Minimoto_Service"
-    
-    os.system(create_tag_script)
-    return service_dns_name,client_dns_name,watchdog_dns_name
+    create_minimoto_tag = "aws ec2 create-tags --resources "+ instances_collection+" --tags Key=Minimoto,Value=Minimoto_Instances"
+    subprocess.call(create_minimoto_tag, shell=True,stdout =subprocess.DEVNULL)
+    create_service_tag ="aws ec2 create-tags --resources "+ service_instance_id+" --tags Key=Stack,Value=Minimoto_Service"
+    subprocess.call(create_service_tag, shell=True,stdout =subprocess.DEVNULL)
+    time.sleep(30)
+    return (service_instance_id,service_dns_name),client_dns_name,watchdog_dns_name
 
 def create_security_group():
     ### aws create security group ###
-    security_group = "aws ec2 create-security-group --group-name unsw-9243-group22-minimoto-sg --description \"My security group\" > security_group.json"
-    os.system(security_group)
-    with open('./security_group.json') as sg:
-        sg_data = json.load(sg)
-
+    create_security_group = "aws ec2 create-security-group --group-name unsw-9243-group22-minimoto-sg --description \"My security group\""
+    create_security_group_proc = Popen(create_security_group,stdout=subprocess.PIPE, stderr=None, shell=True)
+    output, err =create_security_group_proc.communicate()
+    sg_data = json.loads(output.decode().rstrip())
     group_id = sg_data["GroupId"]
     authorize_security_group  = "aws ec2 authorize-security-group-ingress --group-id "+group_id+" --protocol tcp --port 22 --cidr 0.0.0.0/0"
-    os.system(authorize_security_group)
-    # group_id = "sg-0be3be2208ad4b129"
+    subprocess.call(authorize_security_group, shell=True,stdout =subprocess.DEVNULL)
     return group_id
 
 def aws_configure(argv):
@@ -109,29 +112,48 @@ def aws_configure(argv):
     os.system("echo aws_session_token="+ aws_session_token +" >> ~/.aws/credentials")
     os.system("echo \"[default]\noutput = json\nregion = us-east-1\" > ~/.aws/config")
     return keyfile,keyname
+def create_service_AMI(service_instance_id):
+    create_image = "aws ec2 create-image --instance-id "+ service_instance_id + " --name \"Service_Minimoto\" --description \"An AMI for Service_Minimoto\""
+    create_image_proc = Popen(create_image,stdout=subprocess.PIPE, stderr=None, shell=True)
+    output, err = create_image_proc.communicate()
+    output_json = json.loads(output.decode().rstrip())
+    return output_json["ImageId"]
 
 def main():
     length = len(sys.argv)
     if length < 5:
         sys.exit("Usage: ./minimoto_setup keyfile aws_access_key_id aws_secret_access_key aws_session_token")
     keyfile,keyname = aws_configure(sys.argv)
+    minimoto_config_json = {}
+
+   
     print(keyfile,keyname)
-    # group_id = create_security_group()
-    group_id = "sg-0df1222527f5d49a1"
-    service_dns_name,client_dns_name,watchdog_dns_name = launch_instance(keyname,group_id)
-    scp_files_to_ec2(keyfile,service_dns_name,client_dns_name,watchdog_dns_name)
-    # input_bucket_name,output_bucket_name = create_S3()
-    # sqs_name = create_sqs()
-    # print("SQS_REQUEST_QUEUE={}".format(sqs_name))
-    # print("S3_BUCKET_INPUT=s3://{}".format(input_bucket_name))
-    # print("S3_BUCKET_OUTPUT=s3://{}".format(output_bucket_name))
-    config_aws_on_instances(keyfile,service_dns_name,client_dns_name,watchdog_dns_name)
+    group_id = create_security_group()
+    service,client_dns_name,watchdog_dns_name = launch_instance(keyname,group_id)
+    service_instance_id,service_dns_name = service
+    configure_service_instance(keyfile,service_dns_name)
+    service_AMI = create_service_AMI(service_instance_id)
+    configure_client_instance(keyfile,client_dns_name)
+    sqs_name,sqs_url = create_sqs()
+    input_bucket_name,output_bucket_name = create_S3()
+    minimoto_config_json['SQS_URL'] = sqs_url
+    minimoto_config_json['S3_INPUT'] = input_bucket_name
+    minimoto_config_json['S3_OUTPUT'] = output_bucket_name
+    minimoto_config_json['KEYNAME'] = keyname
+    minimoto_config_json['SG_ID'] = group_id
+    minimoto_config_json['SERVICE_AMI'] = service_AMI
+    with open('./minimoto_config.json', 'w') as outfile:
+        json.dump(minimoto_config_json, outfile)
+    configure_watchdog_instance(keyfile,watchdog_dns_name)
+    print("SQS_REQUEST_QUEUE={}".format(sqs_name))
+    print("S3_BUCKET_INPUT=s3://{}".format(input_bucket_name))
+    print("S3_BUCKET_OUTPUT=s3://{}".format(output_bucket_name))
     print("CLIENT_USER=ubuntu")
     print("CLIENT_ADDR={}".format(client_dns_name))
     print("WATCHDOG_USER=ubuntu")
     print("WATCHDOG_ADDR={}".format(watchdog_dns_name))
     print("SERVICE_USER=ubuntu")
-    print("SERVICE_AMI=ami-0739f8cdb239fe9ae")
+    print("SERVICE_AMI={}".format(service_AMI))
 if __name__ == "__main__":
     main()
 
