@@ -1,1 +1,17 @@
 #!/usr/bin/env python3
+import subprocess
+from subprocess import Popen, PIPE
+keyfile = "Tommy.pem"
+dns = "ec2-54-242-47-30.compute-1.amazonaws.com"
+
+service_instances_query = "aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId]' --filters Name=instance-state-name,Values=running Name=tag-value,Values=Minimoto_Service --output text"
+cpu_usage_in_percentage = "mpstat 1 4 | grep \"Average:\""
+command = "ssh -o StrictHostKeyChecking=no -i "+keyfile+" ubuntu@"+dns+" " + cpu_usage_in_percentage
+ssh_to_service_instance = Popen(command,stdout=subprocess.PIPE, stderr=None, shell=True)
+output, err = ssh_to_service_instance.communicate()
+print(output.decode())
+# mpstat 2 2 | grep "Average:" | awk '{ print $3 }'
+
+# aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId]' --filters Name=instance-state-name,Values=running Name=tag-value,Values=Minimoto_Service
+
+# if cpu usage is over 50

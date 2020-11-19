@@ -42,16 +42,19 @@ def scp_files_to_ec2(keyfile,service_dns,client_dns,watchdog_dns):
 
     
 def config_aws_on_instances(keyfile,service_dns,client_dns,watchdog_dns):
-    service_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+service_dns+" < ./aws_config_script"
+    print("*** start configure service")
+    service_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+service_dns+" < ./aws_config_script_service"
     subprocess.call(service_ssh_script, shell=True,stdout =subprocess.DEVNULL)
+    print("*** start configure client")
     client_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+client_dns+" < ./aws_config_script"
     subprocess.call(client_ssh_script, shell=True,stdout =subprocess.DEVNULL)
+    print("*** start configure watchdog")
     watchdog_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+watchdog_dns+" < ./aws_config_script"
     subprocess.call(watchdog_ssh_script, shell=True,stdout =subprocess.DEVNULL)
 
 def launch_instance(keyname,group_id):
     ### aws launch service EC2 instance ###
-    run_instances = "aws ec2 run-instances --image-id ami-0f82752aa17ff8f5d --count 3 --instance-type t2.small --key-name "+keyname+" --security-group-ids "+group_id+" > run_instances.json"
+    run_instances = "aws ec2 run-instances --image-id ami-0739f8cdb239fe9ae --count 3 --instance-type t2.small --key-name "+keyname+" --security-group-ids "+group_id+" > run_instances.json"
     ## service 
     os.system(run_instances)
     with open('./run_instances.json') as ri:
@@ -75,7 +78,8 @@ def launch_instance(keyname,group_id):
     service_instance_id = di_data['Reservations'][0]['Instances'][0]['InstanceId']
     client_dns_name = di_data['Reservations'][0]['Instances'][1]['NetworkInterfaces'][0]['Association']['PublicDnsName']
     watchdog_dns_name = di_data['Reservations'][0]['Instances'][2]['NetworkInterfaces'][0]['Association']['PublicDnsName']
-    create_tag_script ="aws ec2 create-tags --resources "+ service_instance_id+" --tags Key=Stack,Value=Minimoto_Service"
+    create_tag_script ="aws ec2 create-tags --resources "+ instances_collection+" --tags Key=Stack,Value=Minimoto_Service"
+    
     os.system(create_tag_script)
     return service_dns_name,client_dns_name,watchdog_dns_name
 
@@ -104,7 +108,6 @@ def aws_configure(argv):
     os.system("echo aws_secret_access_key="+ aws_secret_access_key +" >> ~/.aws/credentials")
     os.system("echo aws_session_token="+ aws_session_token +" >> ~/.aws/credentials")
     os.system("echo \"[default]\noutput = json\nregion = us-east-1\" > ~/.aws/config")
-    # os.system("cat ~/.aws/credentials")
     return keyfile,keyname
 
 def main():
@@ -128,7 +131,7 @@ def main():
     print("WATCHDOG_USER=ubuntu")
     print("WATCHDOG_ADDR={}".format(watchdog_dns_name))
     print("SERVICE_USER=ubuntu")
-    print("SERVICE_AMI=ami-0f82752aa17ff8f5d")
+    print("SERVICE_AMI=ami-0739f8cdb239fe9ae")
 if __name__ == "__main__":
     main()
 
