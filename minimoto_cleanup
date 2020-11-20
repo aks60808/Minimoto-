@@ -26,7 +26,7 @@ def main():
     delete_buckets(data["S3_INPUT"],data["S3_OUTPUT"])
     delete_sqs(data['SQS_URL'])
     terminate_all_minimoto_instances()
-    time.sleep(30)
+    time.sleep(60)
     delete_security_group_by_name(data['SG_NAME'])
     deregister_AMI(data['SERVICE_AMI'])
 
