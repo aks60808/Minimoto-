@@ -7,3 +7,5 @@ mkdir ~/.aws &>/dev/null
 mv ./credentials ~/.aws/credentials &>/dev/null
 mv ./config ~/.aws/config &>/dev/null
 sudo apt-get -y install sysstat &>/dev/null
+sudo apt-get update -y &>/dev/null
+sudo apt-get -y install imagemagick libav-tools

@@ -7,24 +7,28 @@ import subprocess
 from subprocess import Popen, PIPE
 def create_sqs():
     ### create SQS ###
-    create_sqs = "aws sqs create-queue --queue-name unsw-9243-group22-minimoto-sqs.fifo --attributes FifoQueue=true --region us-east-1"
+    SQS_name = "unsw-9243-group22-minimoto-sqs.fifo"
+    create_sqs = "aws sqs create-queue --queue-name " + SQS_name + " --attributes FifoQueue=true --region us-east-1"
     create_sqs_proc = Popen(create_sqs,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = create_sqs_proc.communicate()
     output_json = json.loads(output.decode().rstrip())
-    return "tommy-unsw-9243-group22-minimoto-sqs.fifo", output_json['QueueUrl']
+    return SQS_name, output_json['QueueUrl']
 
 def create_S3():
-    ### create S3 ###
-    create_s3_input = "aws s3api create-bucket --bucket tommy-unsw-9243-group22-minimoto-input-bucket --region us-east-1"
+    ### S3 Name setup ###
+    S3_BUCKET_INPUT_NAME = "tommy-unsw-9243-group22-minimoto-input-bucket"
+    S3_BUCKET_OUTPUT_NAME = "tommy-unsw-9243-group22-minimoto-output-bucket"
+    ### CREATE BUCKETS
+    create_s3_input = "aws s3api create-bucket --bucket " + S3_BUCKET_INPUT_NAME + " --region us-east-1"
     subprocess.call(create_s3_input, shell=True,stdout =subprocess.DEVNULL)
-    create_s3_output = "aws s3api create-bucket --bucket tommy-unsw-9243-group22-minimoto-output-bucket --region us-east-1"
+    create_s3_output = "aws s3api create-bucket --bucket " + S3_BUCKET_OUTPUT_NAME + " --region us-east-1"
     subprocess.call(create_s3_output, shell=True,stdout =subprocess.DEVNULL)
-    return "tommy-unsw-9243-group22-minimoto-input-bucket","tommy-unsw-9243-group22-minimoto-output-bucket"
+    return S3_BUCKET_INPUT_NAME,S3_BUCKET_OUTPUT_NAME
 
 def configure_service_instance(keyfile,service_dns):
     print("start service scp")
     service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./transcode.sh ~/.aws/credentials ~/.aws/config ubuntu@"+service_dns+":~ "
-    print(service_scp_script)
+    # print(service_scp_script)
     subprocess.call(service_scp_script, shell=True,stdout =subprocess.DEVNULL)
     print("service scp completed")
     print("*** start configure service")
@@ -35,7 +39,7 @@ def configure_service_instance(keyfile,service_dns):
 def configure_client_instance(keyfile,client_dns):
     print("start client scp")
     client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_client ~/.aws/credentials ~/.aws/config ubuntu@"+client_dns+":~ "
-    print(client_scp_script)
+    # print(client_scp_script)
     subprocess.call(client_scp_script, shell=True,stdout =subprocess.DEVNULL)
     print("client scp completed")
     print("*** start configure client")
@@ -46,7 +50,7 @@ def configure_client_instance(keyfile,client_dns):
 def configure_watchdog_instance(keyfile,watchdog_dns):
     print("start watchdog scp")
     watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_watchdog ~/.aws/credentials ./aws_config_script_service ./minimoto_config.json ~/.aws/config ubuntu@"+watchdog_dns+":~ "
-    print(watchdog_scp_script)
+    # print(watchdog_scp_script)
     subprocess.call(watchdog_scp_script, shell=True,stdout =subprocess.DEVNULL)
     print("watchdog scp completed")
     print("*** start configure watchdog")
@@ -90,14 +94,15 @@ def launch_instance(keyname,group_id):
 
 def create_security_group():
     ### aws create security group ###
-    create_security_group = "aws ec2 create-security-group --group-name unsw-9243-group22-minimoto-sg --description \"My security group\""
+    SECURITY_GROUP_NAME = "unsw-9243-group22-minimoto-sg"
+    create_security_group = "aws ec2 create-security-group --group-name " + SECURITY_GROUP_NAME + " --description \"My security group\""
     create_security_group_proc = Popen(create_security_group,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err =create_security_group_proc.communicate()
     sg_data = json.loads(output.decode().rstrip())
     group_id = sg_data["GroupId"]
     authorize_security_group  = "aws ec2 authorize-security-group-ingress --group-id "+group_id+" --protocol tcp --port 22 --cidr 0.0.0.0/0"
     subprocess.call(authorize_security_group, shell=True,stdout =subprocess.DEVNULL)
-    return group_id
+    return SECURITY_GROUP_NAME,group_id
 
 def aws_configure(argv):
     keyfile = sys.argv[1]
@@ -128,7 +133,7 @@ def main():
 
    
     print(keyfile,keyname)
-    group_id = create_security_group()
+    security_group_name,group_id = create_security_group()
     service,client_dns_name,watchdog_dns_name = launch_instance(keyname,group_id)
     service_instance_id,service_dns_name = service
     configure_service_instance(keyfile,service_dns_name)
@@ -140,7 +145,7 @@ def main():
     minimoto_config_json['S3_INPUT'] = input_bucket_name
     minimoto_config_json['S3_OUTPUT'] = output_bucket_name
     minimoto_config_json['KEYNAME'] = keyname
-    minimoto_config_json['SG_ID'] = group_id
+    minimoto_config_json['SG_NAME'] = security_group_name
     minimoto_config_json['SERVICE_AMI'] = service_AMI
     minimoto_config_json['Service_DNS'] = service_dns_name
     with open('./minimoto_config.json', 'w') as outfile:

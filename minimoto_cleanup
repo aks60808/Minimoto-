@@ -6,13 +6,12 @@ import subprocess
 def terminate_all_minimoto_instances():
     terminate_instance  = "aws ec2 terminate-instances --instance-ids `aws ec2 describe-instances --filters Name=tag-key,Values=Minimoto --query Reservations[].Instances[].InstanceId --output text`"
     subprocess.call(terminate_instance, shell=True,stdout =subprocess.DEVNULL)
-def delete_security_group_by_name():
-    command = "aws ec2 delete-security-group --group-name unsw-9243-group22-minimoto-sg"
+def delete_security_group_by_name(sg_name):
+    command = "aws ec2 delete-security-group --group-name " + sg_name
     os.system(command)
-    return 
-def delete_buckets():
-    command_1 = "aws s3api delete-bucket --bucket tommy-unsw-9243-group22-minimoto-input-bucket --region us-east-1"
-    command_2 = "aws s3api delete-bucket --bucket tommy-unsw-9243-group22-minimoto-output-bucket --region us-east-1"
+def delete_buckets(input_bucket_name,output_bucket_name):
+    command_1 = "aws s3api delete-bucket --bucket " + input_bucket_name + " --region us-east-1"
+    command_2 = "aws s3api delete-bucket --bucket " + output_bucket_name + " --region us-east-1"
     os.system(command_1)
     os.system(command_2)
 def delete_sqs(sqs_url):
@@ -24,12 +23,11 @@ def deregister_AMI(ami_id):
 def main():
     with open('minimoto_config.json') as json_file:
         data = json.load(json_file)
-    
-    delete_buckets()
+    delete_buckets(data["S3_INPUT"],data["S3_OUTPUT"])
     delete_sqs(data['SQS_URL'])
     terminate_all_minimoto_instances()
     time.sleep(30)
-    delete_security_group_by_name()
+    delete_security_group_by_name(data['SG_NAME'])
     deregister_AMI(data['SERVICE_AMI'])
 
 if __name__ == "__main__":
