@@ -2,9 +2,10 @@
 import os
 import time
 import json
+import subprocess
 def terminate_all_minimoto_instances():
     terminate_instance  = "aws ec2 terminate-instances --instance-ids `aws ec2 describe-instances --filters Name=tag-key,Values=Minimoto --query Reservations[].Instances[].InstanceId --output text`"
-    os.system(terminate_instance)
+    subprocess.call(terminate_instance, shell=True,stdout =subprocess.DEVNULL)
 def delete_security_group_by_name():
     command = "aws ec2 delete-security-group --group-name unsw-9243-group22-minimoto-sg"
     os.system(command)
@@ -17,6 +18,9 @@ def delete_buckets():
 def delete_sqs(sqs_url):
     command = "aws sqs delete-queue --queue-url " + sqs_url
     os.system(command)
+def deregister_AMI(ami_id):
+    command = "aws ec2 deregister-image --image-id " + ami_id
+    os.system(command)
 def main():
     with open('minimoto_config.json') as json_file:
         data = json.load(json_file)
@@ -26,6 +30,7 @@ def main():
     terminate_all_minimoto_instances()
     time.sleep(30)
     delete_security_group_by_name()
+    deregister_AMI(data['SERVICE_AMI'])
 
 if __name__ == "__main__":
     main()

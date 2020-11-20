@@ -142,6 +142,7 @@ def main():
     minimoto_config_json['KEYNAME'] = keyname
     minimoto_config_json['SG_ID'] = group_id
     minimoto_config_json['SERVICE_AMI'] = service_AMI
+    minimoto_config_json['Service_DNS'] = service_dns_name
     with open('./minimoto_config.json', 'w') as outfile:
         json.dump(minimoto_config_json, outfile)
     configure_watchdog_instance(keyfile,watchdog_dns_name)
@@ -154,6 +155,9 @@ def main():
     print("WATCHDOG_ADDR={}".format(watchdog_dns_name))
     print("SERVICE_USER=ubuntu")
     print("SERVICE_AMI={}".format(service_AMI))
+    print("waiting service reboot from create image - 90sec")
+    time.sleep(90)
+    print("service has been rebooted")
 if __name__ == "__main__":
     main()
 
