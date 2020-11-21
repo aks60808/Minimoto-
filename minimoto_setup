@@ -61,12 +61,11 @@ def configure_watchdog_instance(keyfile,watchdog_dns):
 
 def launch_instance(keyname,group_id):
     ### aws launch service EC2 instance ###
-    launch_instances = "aws ec2 run-instances --image-id ami-0739f8cdb239fe9ae --count 3 --instance-type t2.small --key-name "+keyname+" --security-group-ids "+group_id
+    launch_instances = "aws ec2 run-instances --image-id ami-0739f8cdb239fe9ae --count 3 --instance-type t2.micro --key-name "+keyname+" --security-group-ids "+group_id
     ## service 
     launch_instances_proc = Popen(launch_instances,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = launch_instances_proc.communicate()
     ri_data = json.loads(output.decode().rstrip())
-
     instances_collection = ri_data["Instances"][0]["InstanceId"] + ' ' + ri_data["Instances"][1]["InstanceId"] + ' ' + ri_data["Instances"][2]["InstanceId"]
     ### get instance DNS###
     describe_instances = "aws ec2 describe-instances --instance-ids "+ instances_collection 
@@ -146,6 +145,7 @@ def main():
     minimoto_config_json['S3_OUTPUT'] = output_bucket_name
     minimoto_config_json['KEYNAME'] = keyname
     minimoto_config_json['SG_NAME'] = security_group_name
+    minimoto_config_json['SG_ID'] = group_id
     minimoto_config_json['SERVICE_AMI'] = service_AMI
     minimoto_config_json['Service_DNS'] = service_dns_name
     with open('./minimoto_config.json', 'w') as outfile:

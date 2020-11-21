@@ -1,34 +1,117 @@
 #!/usr/bin/env python3
 import subprocess
 import json
+import random
 from subprocess import Popen, PIPE
-dns = "ec2-54-242-47-30.compute-1.amazonaws.com"
-ls_find_keyfile = Popen("ls | grep .pem",stdout=subprocess.PIPE, stderr=None, shell=True)
-output, err = ls_find_keyfile.communicate()
-keyfile = output.decode().rstrip()
-service_instances_query = "aws ec2 describe-instances --query 'Reservations[*].Instances[*]' --filters Name=instance-state-name,Values=running Name=tag-value,Values=Minimoto_Service --output json"
+import argparse
+MAXIMUM_SERVICE_NUMBER = 15 
+
+def get_running_instances(key_name):
+    keyfile = key_name + ".pem"
+    service_instances_query = "aws ec2 describe-instances --query 'Reservations[*].Instances[*]' --filters Name=instance-state-name,Values=running Name=tag-value,Values=Minimoto_Service --output json"
+    aws_query_running_instances = Popen(service_instances_query,stdout=subprocess.PIPE, stderr=None, shell=True)
+    output, err = aws_query_running_instances.communicate()
+    output_json = json.loads(output.decode().rstrip())
+    running_instances_response = output_json[0]
+    idle_running_instance_list = []
+    total_running_instances_list = []
+    for instance in running_instances_response:
+        dns_name = instance['PublicDnsName']
+        monitor_command = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@" + dns_name + " mpstat 1 4 | grep \"Average:\" | awk '{ print $12 }'"
+        minitor_proc = Popen(monitor_command,stdout=subprocess.PIPE, stderr=None, shell=True)
+        output, err = minitor_proc.communicate()
+        cpu_idle_in_percentage = float(output.decode().rstrip())
+        if cpu_idle_in_percentage < 80:
+            idle_running_instance_list.append((instance['InstanceId'],instance['PublicDnsName']))
+        total_running_instances_list.append((instance['InstanceId'],instance['PublicDnsName']))
+    return idle_running_instance_list , total_running_instances_list
+
+def get_sqs_length(sqs_url):
+    sqs_query_length = "aws sqs get-queue-attributes --queue-url " + sqs_url + " --attribute-names All"
+    sqs_query_length_proc = Popen(sqs_query_length,stdout=subprocess.PIPE, stderr=None, shell=True)
+    output, err = sqs_query_length_proc.communicate()
+    output_json = json.loads(output.decode().rstrip())
+    return int(output_json["Attributes"]["ApproximateNumberOfMessages"])
+
+def decide_scale_in_or_out(idle_running_instance_list,total_running_instances_list,sqs_url):
+    count_of_idle_instance = len(idle_running_instance_list)
+    current_runing_instances_number = len(total_running_instances_list)
+    additional_instances_number = length_of_sqs - count_of_idle_instance
+    ## scale out
+    if additional_instances_number > 0:
+        total_instances_after_scale_out = additional_instances_number + current_runing_instances_number
+        if total_instances_after_scale_out >= MAXIMUM_SERVICE_NUMBER:
+            return MAXIMUM_SERVICE_NUMBER - current_runing_instances_number
+        else:
+            return additional_instances_number
+    ## keep the scale
+    elif additional_instances_number == 0 or current_runing_instances_number == 1:
+        return 0
+    # scale in
+    else:
+        return additional_instances_number - 1 
+
+def adjust_service_instances_pool(key_name,scale_number,idle_running_instance_list,service_AMI,group_id):
+    keyfile = key_name + ".pem"
+    if scale_number < 0:
+        random_picked_idle_running_instance_list = random.sample(aList, abs(scale_number))
+        for instance_id,instance_dns in random_picked_idle_running_instance_list:
+            monitor_command = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@" + instance_dns + " mpstat 1 4 | grep \"Average:\" | awk '{ print $12 }'"
+            minitor_proc = Popen(monitor_command,stdout=subprocess.PIPE, stderr=None, shell=True)
+            output, err = minitor_proc.communicate()
+            cpu_idle_in_percentage = float(output.decode().rstrip())
+            # if it still idle
+            if cpu_idle_in_percentage > 90:
+                terminate_command = "aws ec2 terminate-instances --instance-ids " + instance_id
+                subprocess.call(terminate_command, shell=True,stdout =subprocess.DEVNULL)
+    elif scale_number > 0:
+        launch_instances = "aws ec2 run-instances --image-id " + service_AMI + " --count " + scale_number + " --instance-type t2.micro --tag-specifications 'ResourceType=instance,Tags=[{Key=Stack,Value=Minimoto_Service},{Key=Minimoto,Value=Minimoto_Instances}]' --key-name "+key_name+" --security-group-ids "+group_id
+        subprocess.call(launch_instances, shell=True,stdout =subprocess.DEVNULL)
+     
+def forcedly_scale(key_name,scale_to_num,idle_running_instance_list,total_running_instances_list,service_AMI,group_id):
+    keyfile = key_name + ".pem"
+    current_runing_instances_number = len(total_running_instances_list)
+    scale_number = scale_to_num - current_runing_instances_number
+    if scale_number > 0:
+        launch_instances = "aws ec2 run-instances --image-id " + service_AMI + " --count " + scale_number + " --instance-type t2.micro --tag-specifications 'ResourceType=instance,Tags=[{Key=Stack,Value=Minimoto_Service},{Key=Minimoto,Value=Minimoto_Instances}]' --key-name "+key_name+" --security-group-ids "+group_id
+        subprocess.call(launch_instances, shell=True,stdout =subprocess.DEVNULL)        
+    elif scale_number < 0:
+        scale_in_count = 0
+        for instance_id,instance_dns in idle_running_instance_list:
+            if scale_in_count == abs(scale_number):
+                break
+            terminate_command = "aws ec2 terminate-instances --instance-ids " + instance_id
+            subprocess.call(terminate_command, shell=True,stdout =subprocess.DEVNULL)
+            total_running_instances_list.remove((instance_id,instance_dns))
+            scale_in_count +=1
+        if scale_in_count < abs(scale_number):
+            for instance_id,instance_dns in total_running_instances_list:
+                if scale_in_count == abs(scale_number):
+                    break
+                terminate_command = "aws ec2 terminate-instances --instance-ids " + instance_id
+                subprocess.call(terminate_command, shell=True,stdout =subprocess.DEVNULL)
+                scale_in_count +=1
 
 
-aws_query_running_instances = Popen(service_instances_query,stdout=subprocess.PIPE, stderr=None, shell=True)
-output, err = aws_query_running_instances.communicate()
-output_json = json.loads(output.decode().rstrip())
-running_instances_list = output_json[0]
-idle_running_instance_list = []
-for instance in running_instances_list:
-    dns_name = instance['PublicDnsName']
-    cpu_command = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@" + dns_name + " mpstat 1 4 | grep \"Average:\" | awk '{ print $3 }'"
-    minitor_proc = Popen(cpu_command,stdout=subprocess.PIPE, stderr=None, shell=True)
-    output, err = minitor_proc.communicate()
-    cpu_usage_in_percentage = float(output.decode().rstrip())
-    if cpu_usage_in_percentage < 50:
-        idle_running_instance_list.append(instance['InstanceId'])
-count_of_idle_instance = len(idle_running_instance_list)
-length_of_sqs = 4
-instances_balance = int(count_of_idle_instance - length_of_sqs)
-if instances_balance < 0:
-    run_instances = "aws ec2 run-instances --image-id ami-0739f8cdb239fe9ae --count 3 --instance-type t2.small --key-name "+keyname+" --security-group-ids "+group_id+" > run_instances.json"
-# mpstat 2 2 | grep "Average:" | awk '{ print $3 }'
+def main(scale_to_num,status_flag):
+    with open('minimoto_config.json') as json_file:
+        data = json.load(json_file)
+    key_name = data['KEYNAME']
+    if scale_to_num is None:
+        length_of_sqs = get_sqs_length(data['SQS_URL'])
+        idle_running_instance_list,total_running_instances_list = get_running_instances(keyfile)
+        scale_number = decide_scale_in_or_out(idle_running_instance_list,total_running_instances_list,length_of_sqs)
+        adjust_service_instances_pool(key_name,scale_number,idle_running_instance_list,data['SERVICE_AMI'],data['SG_ID'])
+    else:
+        idle_running_instance_list,total_running_instances_list = get_running_instances(keyfile)
+        forcedly_scale(key_name,scale_to_num,idle_running_instance_list,total_running_instances_list,data['SERVICE_AMI'],data['SG_ID'])
 
-# aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId]' --filters Name=instance-state-name,Values=running Name=tag-value,Values=Minimoto_Service
+if __name__ == "__main__":
 
-# if cpu usage is over 50
+    usage = "./minimoto_watchdog [--scale_to=num] [--status]"
+    parser = argparse.ArgumentParser(usage=usage)
+
+    parser.add_argument('--scale_to=',type = int ,dest = 'scale_to_num',choices=range(1, 16),help="force the watchdog to scale in or out to num instance")
+    parser.add_argument('--status',action="store_true",dest="status_flag", help="monitoring of instances")
+    args = parser.parse_args()
+    main(args.scale_to_num,args.status_flag)
