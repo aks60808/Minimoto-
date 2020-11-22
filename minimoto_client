@@ -2,13 +2,75 @@
 import os
 import json
 import sys
+import os.path
+from os import path
+import random
+import string
+import subprocess
+from subprocess import Popen, PIPE
+import argparse
 
-def upload_image():
-    upload = "aws s3 cp ./simple_image s3://au.edu.unsw.transcode.input-bucket/"
+def random_suffix(num):
+    suffix = ''.join(random.sample(string.ascii_letters + string.digits, num))
+    return suffix
+
+def upload_image(image_path, input_bucket):
+
+    suffix = random_suffix(10)
+    ifexist = "aws s3 ls s3://unsw-9243-group22-minimoto-input-bucket | egrep " + suffix + " | wc -l | sed -e 's/[ ]*//' > ifexist"
+    os.system(ifexist)
+    ifexist_outcome = open("./ifexist")
+    outcome = ifexist_outcome.readline().rstrip()
+    print("*** output is {}".format(outcome))
+    while outcome != '0':
+        suffix = random_suffix(10)
+        ifexist = "aws s3 ls s3://unsw-9243-group22-minimoto-input-bucket | egrep " + suffix + " | wc -l | sed -e 's/[ \t]*//' > ifexist"
+        os.system(ifexist)
+        ifexist_outcome = open("./ifexist")
+        outcome = ifexist_outcome.readline().rstrip()
+        print("*** output is {}".format(outcome))
+
+    base_image_path = path.basename(image_path)
+    upload = "aws s3 cp "+image_path+" s3://"+input_bucket+"/"+base_image_path+"_"+suffix+" --recursive"
     os.system(upload)
+    print("upload images done")
+
+    return base_image_path,suffix
+
+def send_request(base_image_path,suffix,wait_flag):
+    
+    send = "aws sqs send-message --queue-url https://sqs.us-east-1.amazonaws.com/112279482413/unsw-9243-group22-minimoto-sqs.fifo  --message-body "+base_image_path+"_"+suffix+" --message-group-id \"transcode_message_queue\" >/dev/null"
+    os.system(send)
+
+    while wait_flag :
+        print("*** waiting upload output file....")
+        check_file = "aws s3api list-objects --bucket unsw-9243-group22-minimoto-output-bucket --query \"Contents[?contains(Key, \'"+ suffix +"\')]\" | wc -l | sed -e 's/[ \t]*//' > checkfile"
+        os.system(check_file)
+        check_outcome = open("./checkfile")
+        outcome = check_outcome.readline().rstrip()
+        # print("*** outcome is {}".format(outcome))
+        if outcome != '1':
+            wait_flag = False
+            print("**** outpufile ipload done")
+    
+def instance_configure():
+
+    set_attribute = "aws sqs set-queue-attributes --queue-url https://sqs.us-east-1.amazonaws.com/112279482413/unsw-9243-group22-minimoto-sqs.fifo --attributes ContentBasedDeduplication=true,VisibilityTimeout=1800"
+    os.system(set_attribute)
+    print("*** configure finish")
+
 
 def main():
-    upload_image()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--wait',help='wait until transcode finish',action="store_true")
+    parser.add_argument('images_path', help="local images store path")
+    parser.add_argument('input_bucket', help="S3 input bucket path")
+    parser.add_argument('output_bucket', help="S3 output bucket path")
+    
+    args = parser.parse_args()
+    instance_configure()
+    base_path, suffix = upload_image(args.image_path, args.input_bucket)
+    send_request(base_path,suffix,args.wait)
 
 if __name__ == "__main__":
     main()
