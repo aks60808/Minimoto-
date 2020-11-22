@@ -29,7 +29,7 @@ def create_S3():
 
 def configure_service_instance(keyfile,service_dns):
     print("start service scp")
-    service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./transcode.sh ~/.aws/credentials ~/.aws/config ./minimoto_service ubuntu@"+service_dns+":~ "
+    service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./transcode.sh ~/.aws/credentials ~/.aws/config ./minimoto_service ./minimoto_info.json ubuntu@"+service_dns+":~ "
     # print(service_scp_script)
     subprocess.call(service_scp_script, shell=True,stdout =subprocess.DEVNULL)
     print("service scp completed")
@@ -51,7 +51,6 @@ def configure_client_instance(keyfile,client_dns):
 def configure_watchdog_instance(keyfile,watchdog_dns):
     print("start watchdog scp")
     watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_watchdog ~/.aws/credentials ./aws_config_script_service ./minimoto_config.json ~/.aws/config ubuntu@"+watchdog_dns+":~ "
-    # print(watchdog_scp_script)
     subprocess.call(watchdog_scp_script, shell=True,stdout =subprocess.DEVNULL)
     print("watchdog scp completed")
     print("*** start configure watchdog")

@@ -9,4 +9,5 @@ mv ./config ~/.aws/config &>/dev/null
 sudo apt-get update -y &>/dev/null
 sudo apt-get -y install imagemagick libav-tools sysstat &>/dev/null
 chmod 755 ~/minimoto_service
-(crontab -l 2>/dev/null; echo "*/1 * * * * ~/minimoto_service >> ~/minimoto_log") | crontab -
+chmod 755 ~/transcode.sh
+# (crontab -l 2>/dev/null; echo "*/1 * * * * ~/minimoto_service >> ~/minimoto_log") | crontab -
