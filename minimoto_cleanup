@@ -10,8 +10,8 @@ def delete_security_group_by_name(sg_name):
     command = "aws ec2 delete-security-group --group-name " + sg_name
     os.system(command)
 def delete_buckets(input_bucket_name,output_bucket_name):
-    command_1 = "aws s3api delete-bucket --bucket " + input_bucket_name + " --region us-east-1"
-    command_2 = "aws s3api delete-bucket --bucket " + output_bucket_name + " --region us-east-1"
+    command_1 = "aws s3 rb s3://" + input_bucket_name + " --region us-east-1 --force "
+    command_2 = "aws s3 rb s3://" + output_bucket_name + " --region us-east-1 --force "
     os.system(command_1)
     os.system(command_2)
 def delete_sqs(sqs_url):
@@ -28,7 +28,7 @@ def main():
     terminate_all_minimoto_instances()
     time.sleep(60)
     delete_security_group_by_name(data['SG_NAME'])
-    deregister_AMI(data['SERVICE_AMI'])
+    # deregister_AMI(data['SERVICE_AMI'])
 
 if __name__ == "__main__":
     main()

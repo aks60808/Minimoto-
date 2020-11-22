@@ -6,8 +6,8 @@ import os.path
 from os import path
 import time
 
-def download_transcode_image(dir_path):
-    download = "aws s3 cp  --recursive s3://unsw-9243-group22-minimoto-input-bucket/"+dir_path+"/ ./"+dir_path
+def download_transcode_image(dir_path,input_bucket):
+    download = "aws s3 cp  --recursive s3://" + input_bucket + "/"+dir_path+"/ ./"+dir_path
     # print(download)
     os.system(download)
     transcode = "chmod 755 transcode.sh; ./transcode.sh ./"+dir_path+" "+dir_path+".mp4"
@@ -16,12 +16,16 @@ def download_transcode_image(dir_path):
 
 
 def receive_request():
-    receive_request = "aws sqs receive-message --queue-url https://sqs.us-east-1.amazonaws.com/112279482413/unsw-9243-group22-minimoto-sqs.fifo  --max-number-of-messages 1 > request.json"
+    with open('minimoto_info.json') as json_file:
+        data = json.load(json_file)
+    print("*** start receive request")
+    receive_request = "aws sqs receive-message --queue-url " + data["SQS_URL"] + "  --max-number-of-messages 1 > request.json"
     os.system(receive_request)
 
     sz = os.path.getsize("./request.json")
     if not sz:
         # no request return
+        print("*** no request")
         sys.exit("No request in the queue. Exit")
     else:
         with open('./request.json') as rq:
@@ -30,26 +34,25 @@ def receive_request():
         dir_path = rq_data["Messages"][0]["Body"]
         # print("*** receive_handle ={}".format(receive_handle))
         print("*** message_body = {}".format(dir_path))
-        download_transcode_image(dir_path)
-        delete_request = "aws sqs delete-message --queue-url https://sqs.us-east-1.amazonaws.com/112279482413/unsw-9243-group22-minimoto-sqs.fifo --receipt-handle " +receive_handle +" > aws_delete_request"
+        download_transcode_image(dir_path,data["S3_INPUT"])
+        delete_request = "aws sqs delete-message --queue-url " + data["SQS_URL"] + " --receipt-handle " +receive_handle +" > aws_delete_request"
         os.system(delete_request)
         del_sz = os.path.getsize("./aws_delete_request")
         if del_sz:
             # if transcode can not finish in 30mins
             # extend the visibility timw out to 90mins
             # and then delete the request
-            set_attribute = "aws sqs set-queue-attributes --queue-url https://sqs.us-east-1.amazonaws.com/112279482413/unsw-9243-group22-minimoto-sqs.fifo --attributes ContentBasedDeduplication=true,VisibilityTimeout=9000"
+            set_attribute = "aws sqs set-queue-attributes --queue-url " + data["SQS_URL"] + " --attributes ContentBasedDeduplication=true,VisibilityTimeout=9000"
             os.system(set_attribute)
-            delete_request = "aws sqs delete-message --queue-url https://sqs.us-east-1.amazonaws.com/112279482413/unsw-9243-group22-minimoto-sqs.fifo --receipt-handle " +receive_handle +" > aws_delete_request"
+            delete_request = "aws sqs delete-message --queue-url " + data["SQS_URL"] + " --receipt-handle " +receive_handle +" > aws_delete_request"
             os.system(delete_request)
-        upload_output_bucket = "aws s3 cp ./"+dir_path+".mp4 s3://unsw-9243-group22-minimoto-output-bucket/"+dir_path+".mp4"
+        upload_output_bucket = "aws s3 cp ./"+dir_path+".mp4 s3://" + data["S3_OUTPUT"] + "/"+dir_path+".mp4"
         os.system(upload_output_bucket)
         print("upload file")
         # process_request()
 
 def main():
     print("*** start service")
-    print("*** start receive request")
     receive_request()
 
 
