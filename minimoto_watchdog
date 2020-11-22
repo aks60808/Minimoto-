@@ -157,10 +157,8 @@ def main(scale_to_num,status_flag):
         monitor_ruining_instances(key_name)
 
 if __name__ == "__main__":
-
     usage = "./minimoto_watchdog [--scale_to=num] [--status]"
     parser = argparse.ArgumentParser(usage=usage)
-
     parser.add_argument('--scale_to=',type = int ,dest = 'scale_to_num',choices=range(1, 16),help="force the watchdog to scale in or out to num instance")
     parser.add_argument('--status',action="store_true",dest="status_flag", help="monitoring of instances")
     args = parser.parse_args()
