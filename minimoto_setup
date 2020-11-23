@@ -7,17 +7,21 @@ import subprocess
 from subprocess import Popen, PIPE
 def create_sqs():
     ### create SQS ###
+
+    ### SQS name setup
     SQS_name = "unsw-9243-group22-minimoto-sqs.fifo"
+    ### create sqs via aws cli
     create_sqs = "aws sqs create-queue --queue-name " + SQS_name + " --attributes FifoQueue=true --region us-east-1"
     create_sqs_proc = Popen(create_sqs,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = create_sqs_proc.communicate()
     output_json = json.loads(output.decode().rstrip())
+    ### set timeout
     set_attribute = "aws sqs set-queue-attributes --queue-url " + output_json['QueueUrl'] + " --attributes ContentBasedDeduplication=true,VisibilityTimeout=1800"
     subprocess.call(set_attribute, shell=True,stdout =subprocess.DEVNULL)
     return SQS_name, output_json['QueueUrl']
 
 def create_S3():
-    ### S3 Name setup ###
+    ### S3 Name setup 
     S3_BUCKET_INPUT_NAME = "tommy1-unsw-9243-group22-minimoto-input-bucket"
     S3_BUCKET_OUTPUT_NAME = "tommy1-unsw-9243-group22-minimoto-output-bucket"
     ### CREATE BUCKETS
@@ -28,46 +32,43 @@ def create_S3():
     return S3_BUCKET_INPUT_NAME,S3_BUCKET_OUTPUT_NAME
 
 def configure_service_instance(keyfile,service_dns):
-    print("start service scp")
+    ### scp files to service instances
     service_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./transcode.sh ~/.aws/credentials ~/.aws/config ./minimoto_service ./minimoto_info.json ubuntu@"+service_dns+":~ "
-    # print(service_scp_script)
     subprocess.call(service_scp_script, shell=True,stdout =subprocess.DEVNULL)
-    print("service scp completed")
-    print("*** start configure service")
+    ### configure service remotely with bash script via ssh
     service_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+service_dns+" < ./aws_config_script_service"
     subprocess.call(service_ssh_script, shell=True,stdout =subprocess.DEVNULL)
-    print("*** configure service completed")
+    
 
 def configure_client_instance(keyfile,client_dns):
-    print("start client scp")
+    ### scp files to client instances
     client_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_client ~/.aws/credentials ~/.aws/config ./minimoto_info.json ubuntu@"+client_dns+":~ "
     subprocess.call(client_scp_script, shell=True,stdout =subprocess.DEVNULL)
-    print("client scp completed")
-    print("*** start configure client")
+    ### configure client remotely with bash script via ssh
     client_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+client_dns+" < ./aws_config_script"
     subprocess.call(client_ssh_script, shell=True,stdout =subprocess.DEVNULL)
-    print("*** configure client completed")
+
 
 def configure_watchdog_instance(keyfile,watchdog_dns):
-    print("start watchdog scp")
+    ### scp files to client instances
     watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_watchdog ~/.aws/credentials ./minimoto_config.json ~/.aws/config " + keyfile + " ubuntu@"+watchdog_dns+":~ "
     subprocess.call(watchdog_scp_script, shell=True,stdout =subprocess.DEVNULL)
-    print("watchdog scp completed")
-    print("*** start configure watchdog")
+    ### configure watchdog remotely with bash script via ssh
     watchdog_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+watchdog_dns+" < ./aws_config_script"
     subprocess.call(watchdog_ssh_script, shell=True,stdout =subprocess.DEVNULL)
-    print("*** configure watchdog completed")
+    
 
 
 def launch_instance(keyname,group_id):
-    ### aws launch service EC2 instance ###
+    ### aws launch service EC2 instance 
     launch_instances = "aws ec2 run-instances --image-id ami-0739f8cdb239fe9ae --count 3 --instance-type t2.large --key-name "+keyname+" --security-group-ids "+group_id
-    ## service 
     launch_instances_proc = Popen(launch_instances,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = launch_instances_proc.communicate()
+    ### extract running instances data
     ri_data = json.loads(output.decode().rstrip())
+    ### get instance ids
     instances_collection = ri_data["Instances"][0]["InstanceId"] + ' ' + ri_data["Instances"][1]["InstanceId"] + ' ' + ri_data["Instances"][2]["InstanceId"]
-    ### get instance DNS###
+    ### query to aws all instances' state
     describe_instances = "aws ec2 describe-instances --instance-ids "+ instances_collection 
     describe_instances_proc = Popen(describe_instances,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = describe_instances_proc.communicate()
@@ -75,77 +76,116 @@ def launch_instance(keyname,group_id):
     while(di_data['Reservations'][0]['Instances'][0]['State']['Name'] != 'running' and 
           di_data['Reservations'][0]['Instances'][1]['State']['Name'] != 'running' and
           di_data['Reservations'][0]['Instances'][2]['State']['Name'] != 'running' ):
-        # print("EC2 instances still waiting")
         time.sleep(5)
         describe_instances_proc = Popen(describe_instances,stdout=subprocess.PIPE, stderr=None, shell=True)
         output, err = describe_instances_proc.communicate()
         di_data = json.loads(output.decode().rstrip())
+    ### extract Public DNS after all instances' state are running
     service_dns_name = di_data['Reservations'][0]['Instances'][0]['NetworkInterfaces'][0]['Association']['PublicDnsName']
     service_instance_id = di_data['Reservations'][0]['Instances'][0]['InstanceId']
     client_dns_name = di_data['Reservations'][0]['Instances'][1]['NetworkInterfaces'][0]['Association']['PublicDnsName']
     watchdog_dns_name = di_data['Reservations'][0]['Instances'][2]['NetworkInterfaces'][0]['Association']['PublicDnsName']
+    ### create a tag for identifying all minimoto-related instances
     create_minimoto_tag = "aws ec2 create-tags --resources "+ instances_collection+" --tags Key=Minimoto,Value=Minimoto_Instances"
     subprocess.call(create_minimoto_tag, shell=True,stdout =subprocess.DEVNULL)
+    ### create a tag for identifying all minimoto service instances
     create_service_tag ="aws ec2 create-tags --resources "+ service_instance_id+" --tags Key=Stack,Value=Minimoto_Service"
     subprocess.call(create_service_tag, shell=True,stdout =subprocess.DEVNULL)
+    ### sleep 30sec for instances can be reachable by either ssh or scp
     time.sleep(30)
     return (service_instance_id,service_dns_name),client_dns_name,watchdog_dns_name
 
 def create_security_group():
-    ### aws create security group ###
+    ### aws create security group
     SECURITY_GROUP_NAME = "unsw-9243-group22-minimoto-sg"
     create_security_group = "aws ec2 create-security-group --group-name " + SECURITY_GROUP_NAME + " --description \"My security group\""
     create_security_group_proc = Popen(create_security_group,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err =create_security_group_proc.communicate()
+    ### extract the security name and id
     sg_data = json.loads(output.decode().rstrip())
     group_id = sg_data["GroupId"]
+    ### set up rules for access
     authorize_security_group  = "aws ec2 authorize-security-group-ingress --group-id "+group_id+" --protocol tcp --port 22 --cidr 0.0.0.0/0"
     subprocess.call(authorize_security_group, shell=True,stdout =subprocess.DEVNULL)
     return SECURITY_GROUP_NAME,group_id
 
 def aws_configure(argv):
+    ### configure aws related service"
+    ### get key file and name
     keyfile = sys.argv[1]
     keyname = os.path.basename(keyfile)[:-4]
+    ### configure aws credentials
     aws_access_key_id = sys.argv[2]
     aws_secret_access_key = sys.argv[3]
     aws_session_token = sys.argv[4]
+    ### check the existence of  ~/.aws 
+    aws_folder = expanduser("~") + "/.aws"
+    if not os.path.isdir(aws_folder):
+        os.system("mkdir ~/.aws")
+    ### give permission to keyfile
     os.system("chmod 600 {}".format(keyfile))
+    ### echo access info to ~/.aws
     os.system("echo [default] > ~/.aws/credentials")
     os.system("echo aws_access_key_id="+ aws_access_key_id +" >> ~/.aws/credentials")
     os.system("echo aws_secret_access_key="+ aws_secret_access_key +" >> ~/.aws/credentials")
     os.system("echo aws_session_token="+ aws_session_token +" >> ~/.aws/credentials")
     os.system("echo \"[default]\noutput = json\nregion = us-east-1\" > ~/.aws/config")
     return keyfile,keyname
+
 def create_service_AMI(service_instance_id):
+    ### create service AMI
     create_image = "aws ec2 create-image --instance-id "+ service_instance_id + " --name \"Service_Minimoto\" --description \"An AMI for Service_Minimoto\""
     create_image_proc = Popen(create_image,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = create_image_proc.communicate()
     output_json = json.loads(output.decode().rstrip())
     return output_json["ImageId"]
 
+def wait_for_service_AMI_become_available(service_AMI):
+    ### check the state of service AMI
+    check_ami_state = "aws ec2 describe-images --region us-east-1 --query 'Images[*].[State]' --output text --image-ids " + service_AMI
+    check_ami_state_proc = Popen(check_ami_state,stdout=subprocess.PIPE, stderr=None, shell=True)
+    output, err = check_ami_state_proc.communicate()
+    state = output.decode().rstrip()
+    while state != "available":
+        ### refresh every 30 sec then query again
+        time.sleep(30)
+        check_ami_state_proc = Popen(check_ami_state,stdout=subprocess.PIPE, stderr=None, shell=True)
+        output, err = check_ami_state_proc.communicate()
+        state = output.decode().rstrip()
+    
 def main():
+    ## data for output
+    minimoto_config_json = {}
+    minimoto_info_json = {}
+    ### length check
     length = len(sys.argv)
     if length < 5:
         sys.exit("Usage: ./minimoto_setup keyfile aws_access_key_id aws_secret_access_key aws_session_token")
+    ### configure aws
     keyfile,keyname = aws_configure(sys.argv)
+    ### create sqs
     sqs_name,sqs_url = create_sqs()
+    ### create buckets
     input_bucket_name,output_bucket_name = create_S3()
-    minimoto_config_json = {}
-    minimoto_info_json = {}
-    print(keyfile,keyname)
+    ### create security group
     security_group_name,group_id = create_security_group()
+    ### launch instances
     service,client_dns_name,watchdog_dns_name = launch_instance(keyname,group_id)
+    ### extract service_instance_id and dns
     service_instance_id,service_dns_name = service
+    ### record mandatory info to client and service instances
     minimoto_info_json['SQS_URL'] = sqs_url
     minimoto_info_json['S3_INPUT'] = input_bucket_name
     minimoto_info_json['S3_OUTPUT'] = output_bucket_name
     with open('./minimoto_info.json', 'w') as outfile:
         json.dump(minimoto_info_json, outfile)
+    ### configure service instance
     configure_service_instance(keyfile,service_dns_name)
+    ### create service AMI based on service instance
     service_AMI = create_service_AMI(service_instance_id)
-
+    ### configure cilent
     configure_client_instance(keyfile,client_dns_name)
-    
+    ### record more detailed info for watchdog and cleanup program
     minimoto_config_json['SQS_URL'] = sqs_url
     minimoto_config_json['S3_INPUT'] = input_bucket_name
     minimoto_config_json['S3_OUTPUT'] = output_bucket_name
@@ -156,7 +196,11 @@ def main():
     minimoto_config_json['Service_DNS'] = service_dns_name
     with open('./minimoto_config.json', 'w') as outfile:
         json.dump(minimoto_config_json, outfile)
+    ### configure watchdog
     configure_watchdog_instance(keyfile,watchdog_dns_name)
+    ### final step, wait for AMI being available
+    wait_for_service_AMI_become_available(service_AMI)
+    print("minimoto_setup: mandatory output messages follow")
     print("SQS_REQUEST_QUEUE={}".format(sqs_name))
     print("S3_BUCKET_INPUT=s3://{}".format(input_bucket_name))
     print("S3_BUCKET_OUTPUT=s3://{}".format(output_bucket_name))
@@ -166,18 +210,6 @@ def main():
     print("WATCHDOG_ADDR={}".format(watchdog_dns_name))
     print("SERVICE_USER=ubuntu")
     print("SERVICE_AMI={}".format(service_AMI))
-    print("waiting service AMI to be available")
-    check_ami_state = "aws ec2 describe-images --region us-east-1 --query 'Images[*].[State]' --output text --image-ids " + service_AMI
-    check_ami_state_proc = Popen(check_ami_state,stdout=subprocess.PIPE, stderr=None, shell=True)
-    output, err = check_ami_state_proc.communicate()
-    state = output.decode().rstrip()
-    while state != "available":
-        print("*** Service AMI is still on pending status ... wait 30 sec")
-        time.sleep(30)
-        check_ami_state_proc = Popen(check_ami_state,stdout=subprocess.PIPE, stderr=None, shell=True)
-        output, err = check_ami_state_proc.communicate()
-        state = output.decode().rstrip()
-    print("service AMI is available")
 if __name__ == "__main__":
     main()
 
