@@ -39,8 +39,7 @@ def upload_image(image_path, input_bucket):
 def send_request(base_image_path,suffix,wait_flag,output_bucket):
     with open('minimoto_info.json') as json_file:
         data = json.load(json_file)
-    
-    send = "aws sqs send-message --queue-url " + data["SQS_URL"] + " --message-body "+base_image_path+"_"+suffix+" --message-group-id \"transcode_message_queue\" >/dev/null"
+    send = send = "aws sqs send-message --queue-url " + data["SQS_URL"] + " --message-body "+base_image_path+"_"+suffix+" >/dev/null"
     os.system(send)
     while wait_flag :
         print("*** waiting upload output file.... refresh every 30 sec")
@@ -59,11 +58,11 @@ def send_request(base_image_path,suffix,wait_flag,output_bucket):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--wait',help='wait until transcode finish',action="store_true")
-    parser.add_argument('image_path', help="local images store path")
+    parser.add_argument('images_path', help="local images store path")
     parser.add_argument('input_bucket', help="S3 input bucket path")
     parser.add_argument('output_bucket', help="S3 output bucket path")
     args = parser.parse_args()
-    base_path, suffix = upload_image(args.image_path, args.input_bucket)
+    base_path, suffix = upload_image(args.images_path, args.input_bucket)
     send_request(base_path,suffix,args.wait,args.output_bucket)
 
 if __name__ == "__main__":
