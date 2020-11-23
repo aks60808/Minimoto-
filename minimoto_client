@@ -43,7 +43,8 @@ def send_request(base_image_path,suffix,wait_flag,output_bucket):
     send = "aws sqs send-message --queue-url " + data["SQS_URL"] + " --message-body "+base_image_path+"_"+suffix+" --message-group-id \"transcode_message_queue\" >/dev/null"
     os.system(send)
     while wait_flag :
-        print("*** waiting upload output file....")
+        print("*** waiting upload output file.... refresh every 30 sec")
+        time.sleep(30)
         check_file = "aws s3api list-objects --bucket " + output_bucket + " --query \"Contents[?contains(Key, \'"+ suffix +"\')]\" | wc -l | sed -e 's/[ \t]*//' > checkfile"
         os.system(check_file)
         check_outcome = open("./checkfile")
@@ -51,7 +52,7 @@ def send_request(base_image_path,suffix,wait_flag,output_bucket):
         # print("*** outcome is {}".format(outcome))
         if outcome != '1':
             wait_flag = False
-            print("**** outpufile ipload done")
+            print("**** outpufile upload done")
     
 
 

@@ -18,8 +18,8 @@ def create_sqs():
 
 def create_S3():
     ### S3 Name setup ###
-    S3_BUCKET_INPUT_NAME = "tommy-unsw-9243-group22-minimoto-input-bucket"
-    S3_BUCKET_OUTPUT_NAME = "tommy-unsw-9243-group22-minimoto-output-bucket"
+    S3_BUCKET_INPUT_NAME = "tommy1-unsw-9243-group22-minimoto-input-bucket"
+    S3_BUCKET_OUTPUT_NAME = "tommy1-unsw-9243-group22-minimoto-output-bucket"
     ### CREATE BUCKETS
     create_s3_input = "aws s3api create-bucket --bucket " + S3_BUCKET_INPUT_NAME + " --region us-east-1"
     subprocess.call(create_s3_input, shell=True,stdout =subprocess.DEVNULL)
@@ -50,7 +50,7 @@ def configure_client_instance(keyfile,client_dns):
 
 def configure_watchdog_instance(keyfile,watchdog_dns):
     print("start watchdog scp")
-    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_watchdog ~/.aws/credentials ./aws_config_script_service ./minimoto_config.json ~/.aws/config ubuntu@"+watchdog_dns+":~ "
+    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_watchdog ~/.aws/credentials ./minimoto_config.json ~/.aws/config ubuntu@"+watchdog_dns+":~ "
     subprocess.call(watchdog_scp_script, shell=True,stdout =subprocess.DEVNULL)
     print("watchdog scp completed")
     print("*** start configure watchdog")
