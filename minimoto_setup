@@ -5,19 +5,20 @@ import sys
 import time
 import subprocess
 from subprocess import Popen, PIPE
+from os.path import expanduser
 def create_sqs():
     ### create SQS ###
 
     ### SQS name setup
-    SQS_name = "unsw-9243-group22-minimoto-sqs.fifo"
+    SQS_name = "unsw-9243-group22-minimoto-sqs"
     ### create sqs via aws cli
-    create_sqs = "aws sqs create-queue --queue-name " + SQS_name + " --attributes FifoQueue=true --region us-east-1"
+    create_sqs = "aws sqs create-queue --queue-name " + SQS_name + " --attributes VisibilityTimeout=1 --region us-east-1"
     create_sqs_proc = Popen(create_sqs,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = create_sqs_proc.communicate()
     output_json = json.loads(output.decode().rstrip())
     ### set timeout
-    set_attribute = "aws sqs set-queue-attributes --queue-url " + output_json['QueueUrl'] + " --attributes ContentBasedDeduplication=true,VisibilityTimeout=1800"
-    subprocess.call(set_attribute, shell=True,stdout =subprocess.DEVNULL)
+    # set_attribute = "aws sqs set-queue-attributes --queue-url " + output_json['QueueUrl'] + " --attributes ContentBasedDeduplication=true,VisibilityTimeout=1800"
+    # subprocess.call(set_attribute, shell=True,stdout =subprocess.DEVNULL)
     return SQS_name, output_json['QueueUrl']
 
 def create_S3():
