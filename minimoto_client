@@ -53,11 +53,6 @@ def send_request(base_image_path,suffix,wait_flag,output_bucket):
             wait_flag = False
             print("**** outpufile ipload done")
     
-def instance_configure():
-
-    set_attribute = "aws sqs set-queue-attributes --queue-url https://sqs.us-east-1.amazonaws.com/112279482413/unsw-9243-group22-minimoto-sqs.fifo --attributes ContentBasedDeduplication=true,VisibilityTimeout=1800"
-    os.system(set_attribute)
-    print("*** configure finish")
 
 
 def main():

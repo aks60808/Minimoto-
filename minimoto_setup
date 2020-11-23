@@ -7,13 +7,13 @@ import subprocess
 from subprocess import Popen, PIPE
 def create_sqs():
     ### create SQS ###
-    SQS_name = "unsw-9243-group22-minimoto-sqs"
-    create_sqs = "aws sqs create-queue --queue-name " + SQS_name 
+    SQS_name = "unsw-9243-group22-minimoto-sqs.fifo"
+    create_sqs = "aws sqs create-queue --queue-name " + SQS_name + " --attributes FifoQueue=true --region us-east-1"
     create_sqs_proc = Popen(create_sqs,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = create_sqs_proc.communicate()
     output_json = json.loads(output.decode().rstrip())
-    # set_attribute = "aws sqs set-queue-attributes --queue-url " + output_json['QueueUrl'] + " --attributes ContentBasedDeduplication=true,VisibilityTimeout=1800"
-    # subprocess.call(set_attribute, shell=True,stdout =subprocess.DEVNULL)
+    set_attribute = "aws sqs set-queue-attributes --queue-url " + output_json['QueueUrl'] + " --attributes ContentBasedDeduplication=true,VisibilityTimeout=1800"
+    subprocess.call(set_attribute, shell=True,stdout =subprocess.DEVNULL)
     return SQS_name, output_json['QueueUrl']
 
 def create_S3():
