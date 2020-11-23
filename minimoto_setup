@@ -50,7 +50,7 @@ def configure_client_instance(keyfile,client_dns):
 
 def configure_watchdog_instance(keyfile,watchdog_dns):
     print("start watchdog scp")
-    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_watchdog ~/.aws/credentials ./minimoto_config.json ~/.aws/config ubuntu@"+watchdog_dns+":~ "
+    watchdog_scp_script = "scp -o StrictHostKeyChecking=no -q -i "+keyfile+" ./minimoto_watchdog ~/.aws/credentials ./minimoto_config.json ~/.aws/config " + keyfile + " ubuntu@"+watchdog_dns+":~ "
     subprocess.call(watchdog_scp_script, shell=True,stdout =subprocess.DEVNULL)
     print("watchdog scp completed")
     print("*** start configure watchdog")
@@ -142,7 +142,7 @@ def main():
     with open('./minimoto_info.json', 'w') as outfile:
         json.dump(minimoto_info_json, outfile)
     configure_service_instance(keyfile,service_dns_name)
-    # service_AMI = create_service_AMI(service_instance_id)
+    service_AMI = create_service_AMI(service_instance_id)
 
     configure_client_instance(keyfile,client_dns_name)
     
@@ -152,7 +152,7 @@ def main():
     minimoto_config_json['KEYNAME'] = keyname
     minimoto_config_json['SG_NAME'] = security_group_name
     minimoto_config_json['SG_ID'] = group_id
-    # minimoto_config_json['SERVICE_AMI'] = service_AMI
+    minimoto_config_json['SERVICE_AMI'] = service_AMI
     minimoto_config_json['Service_DNS'] = service_dns_name
     with open('./minimoto_config.json', 'w') as outfile:
         json.dump(minimoto_config_json, outfile)
@@ -165,19 +165,19 @@ def main():
     print("WATCHDOG_USER=ubuntu")
     print("WATCHDOG_ADDR={}".format(watchdog_dns_name))
     print("SERVICE_USER=ubuntu")
-    # print("SERVICE_AMI={}".format(service_AMI))
-    # print("waiting service AMI to be available")
-    # check_ami_state = "aws ec2 describe-images --region us-east-1 --query 'Images[*].[State]' --output text --image-ids " + service_AMI
-    # check_ami_state_proc = Popen(check_ami_state,stdout=subprocess.PIPE, stderr=None, shell=True)
-    # output, err = check_ami_state_proc.communicate()
-    # state = output.decode().rstrip()
-    # while state != "available":
-    #     print("*** Service AMI is still on pending status ... wait 30 sec")
-    #     time.sleep(30)
-    #     check_ami_state_proc = Popen(check_ami_state,stdout=subprocess.PIPE, stderr=None, shell=True)
-    #     output, err = check_ami_state_proc.communicate()
-    #     state = output.decode().rstrip()
-    # print("service AMI is available")
+    print("SERVICE_AMI={}".format(service_AMI))
+    print("waiting service AMI to be available")
+    check_ami_state = "aws ec2 describe-images --region us-east-1 --query 'Images[*].[State]' --output text --image-ids " + service_AMI
+    check_ami_state_proc = Popen(check_ami_state,stdout=subprocess.PIPE, stderr=None, shell=True)
+    output, err = check_ami_state_proc.communicate()
+    state = output.decode().rstrip()
+    while state != "available":
+        print("*** Service AMI is still on pending status ... wait 30 sec")
+        time.sleep(30)
+        check_ami_state_proc = Popen(check_ami_state,stdout=subprocess.PIPE, stderr=None, shell=True)
+        output, err = check_ami_state_proc.communicate()
+        state = output.decode().rstrip()
+    print("service AMI is available")
 if __name__ == "__main__":
     main()
 

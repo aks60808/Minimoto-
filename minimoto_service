@@ -58,16 +58,16 @@ def check_only_service():
     check_service_proc = Popen(check_service,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = check_service_proc.communicate()
     status = output.decode().rstrip()
-    print(status)
+    # print(status)
     if status == '3':
         print("*** start receive request")
     else:
-        print("Have other service process already")
+        # print("Have other service process already")
         sys.exit("Have other service process already.Exit")
             
 
 def main():
-    print("*** checking if other service program already exists....")
+    # print("*** checking if other service program already exists....")
     
     check_only_service()
     receive_request()
