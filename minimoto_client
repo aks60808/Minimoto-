@@ -64,6 +64,7 @@ def main():
     args = parser.parse_args()
     base_path, suffix = upload_image(args.images_path, args.input_bucket)
     send_request(base_path,suffix,args.wait,args.output_bucket)
+    print("You'll find the output in s3://"+args.output_bucket+"/"+base_path+"_"+suffix+".mp4")
 
 if __name__ == "__main__":
     main()
