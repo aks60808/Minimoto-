@@ -247,6 +247,7 @@ def main(scale_to_num,status_flag):
         if scale_to_num is None:
             ### retrieve sqs length
             length_of_sqs = get_sqs_length(data['SQS_URL'])
+            print("current sqs length is {}".format(length_of_sqs))
             total_running_instances_ids = get_total_running_instance_ids(key_name)
             idle_running_instance_list,total_running_instances_list = get_idle_running_instances(key_name,total_running_instances_ids)
             ### decide to scale in or out

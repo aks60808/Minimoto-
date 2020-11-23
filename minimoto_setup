@@ -16,9 +16,6 @@ def create_sqs():
     create_sqs_proc = Popen(create_sqs,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = create_sqs_proc.communicate()
     output_json = json.loads(output.decode().rstrip())
-    ### set timeout
-    # set_attribute = "aws sqs set-queue-attributes --queue-url " + output_json['QueueUrl'] + " --attributes ContentBasedDeduplication=true,VisibilityTimeout=1800"
-    # subprocess.call(set_attribute, shell=True,stdout =subprocess.DEVNULL)
     return SQS_name, output_json['QueueUrl']
 
 def create_S3():

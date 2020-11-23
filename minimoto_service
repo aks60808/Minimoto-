@@ -46,18 +46,20 @@ def receive_request():
         if outcome == '0':
             # no instances complete the request
             # upload the mp4 file and delete the request
-            delete_request = "aws sqs delete-message --queue-url " + data["SQS_URL"] + " --receipt-handle " +receive_handle 
-            os.system(delete_request)
+
             upload_output_bucket = "aws s3 cp ./"+dir_path+".mp4 s3://"+ data["S3_OUTPUT"] + "/"+dir_path+".mp4"
             os.system(upload_output_bucket)
             print("upload mp4 file to s3 output bucket")
 
-         # delete all download images
+        # delete all download images
+        delete_request = "aws sqs delete-message --queue-url " + data["SQS_URL"] + " --receipt-handle " +receive_handle 
+        os.system(delete_request)
+        print("request deleted")
         delete_images = "rm -r ./"+dir_path+"*"
         os.system(delete_images)
         print("*** Delete all local images and mp4 file")
 
-        # process_request()
+        # process_request
 
 def check_only_service():
     check_service = "ps -aux | egrep 'python3 /home/ubuntu/minimoto_service' | wc -l "

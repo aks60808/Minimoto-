@@ -1,9 +1,13 @@
+COMP9243 assignment 3
+GROUP 22 
+Heng-Chuan Lin z5219960
+Ting Ting Peng        
 
 Extra Files in submitted tar
     - aws_config_script: a shell script for configuring client and watchdog remotely via ssh.
     - aws_config_script_service: a shell script for configuring service instance remotely via ssh.
 
-Minimoto_setup
+[Minimoto_setup]
 
     #General steps
 
@@ -67,7 +71,7 @@ Minimoto_setup
             Hence, it usually took overall 6-8 minutes until the Service AMI is ready-to-use. But sometimes it would take close to 10 min when 
             traffic is busy.
 
-Minimoto_cleanup
+[Minimoto_cleanup]
 
     #General steps
 
@@ -85,16 +89,114 @@ Minimoto_cleanup
         3. Since all command is executed on Subprocess, so program can still be executed to the end with some error happened as long
             as there's no failure occurred in python.
 
-Minimoto_watchdog
+[Minimoto_watchdog]
 
     #Automatically scaling
-        
+        we will find idle running instances first and subtract with the length of SQS.
+        if length(SQS) - number_of_idle_instances > 0 then we will scale out by |leng(SQS) - number_of_idle_instances|
+        if length(SQS) - number_of_idle_instances < 0 then we will "try to" terminate the instances from idle list
+        Before actually terminate it, watchdog will measure its CPU utilization again , to see if that instance had things to do.
+        Scaling in will be gradually scaling in. for example, if it suggest that we need to scale in by 4, we will only scale in by 3.
+        And it won't to scale-in to 0 -> there always to one active service instance.
     #Forcedly scaling
-
+        scale out is easier since there's no need to measure utilization of any current instances.
+            But with limitation of our maximum number of instances, only 7 instances can be functional in the same time.
+        scale in need to take consider of which instances to be terminated.
+            we will measure the instances to obtain a list of idle instances and then terminate them based on how many we need to.
+            if that's no enough, watchdog will sadly terminate some/most of them based on how many instances need to be killed for 
+            fulfillment of operation.
     #Status check
+        will query cloudwatch via aws cli and get the statistical report of avg. CPU utilization from each running instances.
+        Sometimes the report of specific instance hasn't been created so watchdog will output not yet initialized for that instance.
+        And the avg. CPU utilization of all running service instances will only take the ones with "figure" for CPU utilization. 
+
+[minimoto_client]
+
+   -- Briefly Introdution
+	Program minimoto_client uploads local image files to S3-input-bucket 
+	which has been configured by program minimoto_setup. After uploading,
+	client sends a unique request to SQS. If no wait flag set, client exits.
+	Otherwise, client waits until trandcoding finish.
+   
+   -- Upload Images
+	To avoid previous upload images being overwritten by latter upload, we 
+	generate an unique suffix to upload folder for each request. We randomly
+	pick up 10 characters from 26 uppercase letters, 26 lowercase letters and
+	10 numbers. Then we use AWS CLI "aws s3 ls" to check whether the folder with
+	suffix already exists. If not, use this suffix to upload images. Therefore,
+	theoretically, our prgram can make sure client upload 62^10 times.
+   
+   -- Send Request
+	After uploading all local images, client sends an unique request/message to 
+	SQS which also configured by program minimoto_setup. We use the unique folder
+	name as message body.
+   
+   -- Wait Option
+	If the wait flag has beed set, after sending the request, client will rather
+	exit but using AWS CLI "aws s3api list-objects" to check whether the output
+	mp4 file has been upload to output bucket in a while loop.
 
 
-Shortcomings 
+[minimoto_service]
+
+   -- Briefly Introduction
+	There are serveral things need service to do:
+		1. check if exist any other service process
+		2. check if any request in SQS
+ 		3. receive request
+		4. doing transcode
+		5. check if other instance already complete the same request before upload
+		5. delete request, delete local files
+   
+   -- Check If Other Service Process Exist:
+	We use comment 'ps -aux' to fetch all the running processes and grep them with
+	'python minimoto_service'. If there are 3 processes relate to 'minimoto_service' (one 
+	is minimoto_service process, one is 'cron' and other one is 'grep'), we assume
+	there is already have a service process and exit.
+
+   -- Receive Request
+	We use AWS CLI 'aws sqs receivce-message' to fetch the head request on SQS.
+	At the beginning, we use FIFO SQS to impletement 'extactly one processing'.
+	But the question is, other receive-message requests will be blocked until the 
+	first request has been delete. When there are 20 requests on the queue with 
+	VisibilityTimeout=30, the last request needs to wait at least 10 mins. Now we
+	just use standard queue and different instances may receive the same request.
+ 
+	When service request message, if no return, it means no any request need to 
+	process and then service quit.
+	If any request return, service downloads the images from the path contained in
+	message body and applies transcode shell script to these image.
+	
+	When tanscoding finish,servie check whether the mp4 file existed on output bucket
+	If no, service uploads the mp4 file to output bucket and delete the request.
+	Service also delete all the local images.
+	The initial VisibilityTimeout is 1s.
+
+   -- Delete Request
+	When service finishs transcode, it need to delete the request on the SQS because AWS will
+	not automatically delete the message. Because the request will be deliver at least once, 
+	the request will be deleted by who upload the mp4 file successfully.
+
+   -- Cron
+	Service program will be fired by cron every 1 minute.
+
+
+[Shortcomings] 
+    #Standard Queue Delivery at Least Once
+        VisibilityTimeout for each request is 1 second. In this way, service instance will not 
+        idle or block but waiting for request. It takes into the problem that some instances 
+        will do the same job but only one job will be submitted successfully. This strategy better
+        ensure the request can be executed but not lost if the instance cras but waste instance 
+        resources.  
+	
+    #Limited Request Number
+        Different requests require different suffix. Due to the length of suffix( with 10 characters),
+        the design can not process more than 63^10 requests without any deletion. But the number is 
+        quite enough for this assignment. 
+    #Sometime SCP or SSH will have rare chance to get "lost connection"
+
+        We sometimes will have this connection issue, but with limited time, we could not deal with this.
+        One teammate suffer from DNS resolving issue within her computer which make us hard to debug this issue.
 
     #Trancoding Service consume too much memory:
 
@@ -123,3 +225,16 @@ Shortcomings
         And also see the new launched instances changing state from pending to running, however after few seconds,
         the state will be changed to shutting-down then terminated.
         We suspect there is some policy limiting running instances while using education account
+
+[Testing]
+    we only use over 50 images testing our final system due to time limit.
+    we first generate 5 requests from client, and use watchdog forcedly scale to 3.
+    1 min after we run watchdog to automatically scale out. 
+    after 1 min we forcedly scale to only 2 to crash some operation
+    finally we observe the SQS request size is 0 and have 5 .mp4 in our output bucket
+
+
+[Contribution]
+    TING TING : implement client ,service 
+    HENG CHUAN : implement setup,cleanup,watchdog and final testing
+    We contribute equally.
