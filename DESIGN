@@ -1,7 +1,7 @@
 COMP9243 assignment 3
 GROUP 22 
 Heng-Chuan Lin z5219960
-Ting Ting Peng        
+Ting Ting Peng z5250402       
 
 Extra Files in submitted tar
     - aws_config_script: a shell script for configuring client and watchdog remotely via ssh.
