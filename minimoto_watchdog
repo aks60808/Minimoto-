@@ -9,46 +9,63 @@ import time
 MAXIMUM_SERVICE_NUMBER = 7 
 
 def get_total_running_instance_ids(key_name):
+    ### get a list of total running instance ids
     keyfile = key_name + ".pem"
+    ### execute aws cli 
     service_instances_query = "aws ec2 describe-instances --query 'Reservations[*].Instances[*].InstanceId[]' --filters Name=instance-state-name,Values=running Name=tag-value,Values=Minimoto_Service --output json"
     aws_query_running_instances = Popen(service_instances_query,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = aws_query_running_instances.communicate()
+    ### extract information from output
     output_json = json.loads(output.decode().rstrip())
     total_running_instances_ids = output_json
     return total_running_instances_ids
+
 def get_idle_running_instances(key_name,instance_ids_list):
+    ### check which service instances are idle and also output a list of (instance_id,dns) from all service instances
     keyfile = key_name + ".pem"
     idle_running_instance_list = []
     total_running_instances_list = []
     print("check real-time CPU utilization of each running service instances")
     print("instance id | CPU utilization (%) of idle")
     for instance_id in instance_ids_list:
+        ### query aws for instance's information
         service_indiv_instance_query = "aws ec2 describe-instances --instance-ids " + instance_id
         service_indiv_instance_query_proc = Popen(service_indiv_instance_query,stdout=subprocess.PIPE, stderr=None, shell=True)
         output, err = service_indiv_instance_query_proc.communicate()
+        ### extract the information from output
         output_json = json.loads(output.decode().rstrip())
         dns_name = output_json['Reservations'][0]['Instances'][0]['NetworkInterfaces'][0]['Association']['PublicDnsName']
+        ### monitor command  -> this will generate the output of idle cpu utilization %
         monitor_command = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@" + dns_name + " mpstat 1 4 | grep \"Average:\" | awk '{ print $12 }'"
+        ### retry 
         retry = 0
         while True:
             if retry == 2:
+                ### service instance is busy doing somethine very likely running out of memory
                 print("{} | No response".format(instance_id))
                 break
+            ### execute the command via aws cli
             minitor_proc = Popen(monitor_command,stdout=subprocess.PIPE, stderr=None, shell=True)
             output, err = minitor_proc.communicate()
             try:
+                ### this line will trigger exception if output cannot be converted to float -> busy
                 cpu_idle_in_percentage = float(output.decode().rstrip())
                 print("{} | {}".format(instance_id,cpu_idle_in_percentage))
-                if cpu_idle_in_percentage > 80:
+                ### if CPU idle over 90% -> should be idle
+                if cpu_idle_in_percentage > 90:
                     idle_running_instance_list.append((instance_id,dns_name))
+                ### measure finished escape from loop
                 break
             except:
+                ### service is busy, ask again
                 retry += 1
                 continue
+        ### record id,dns to a list
         total_running_instances_list.append((instance_id,dns_name))
     return idle_running_instance_list , total_running_instances_list
 
 def get_sqs_length(sqs_url):
+    ### get the length of SQS
     sqs_query_length = "aws sqs get-queue-attributes --queue-url " + sqs_url + " --attribute-names All"
     sqs_query_length_proc = Popen(sqs_query_length,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = sqs_query_length_proc.communicate()
@@ -56,12 +73,14 @@ def get_sqs_length(sqs_url):
     return int(output_json["Attributes"]["ApproximateNumberOfMessages"])
 
 def decide_scale_in_or_out(idle_running_instance_list,total_running_instances_list,length_of_sqs):
+    ### will decide whether scale in or out based on idle number and length of sqs
     count_of_idle_instance = len(idle_running_instance_list)
     current_runing_instances_number = len(total_running_instances_list)
     additional_instances_number = length_of_sqs - count_of_idle_instance
     ## scale out
     if additional_instances_number > 0:
         total_instances_after_scale_out = additional_instances_number + current_runing_instances_number
+        ### check if the number exceed the MAXIMIM instances number
         if total_instances_after_scale_out >= MAXIMUM_SERVICE_NUMBER:
             return MAXIMUM_SERVICE_NUMBER - current_runing_instances_number
         else:
@@ -71,29 +90,43 @@ def decide_scale_in_or_out(idle_running_instance_list,total_running_instances_li
         return 0
     # scale in
     else:
+        ### add one for the purpose of gradually scale in
+        ### for example if additional_instances_number is -4 means we will shut down 4 running services
+        ### but we will only shut down 3 by return -3
         return additional_instances_number + 1 
 
 def adjust_service_instances_pool(key_name,scale_number,idle_running_instance_list,service_AMI,group_id):
+    ### based on scale number, scale in or out
     keyfile = key_name + ".pem"
+    # scale in
     if scale_number < 0:
         actual_terminated_instaces_count = 0
-        print(abs(scale_number))
+        ### randomly pick up n instance from the idle list based on scale_number
         random_picked_idle_running_instance_list = random.sample(idle_running_instance_list, abs(scale_number))
         for instance_id,instance_dns in random_picked_idle_running_instance_list:
+            ### mintor again give it last chance
             monitor_command = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@" + instance_dns + " mpstat 1 4 | grep \"Average:\" | awk '{ print $12 }'"
+            ### execute the command via aws cli
             minitor_proc = Popen(monitor_command,stdout=subprocess.PIPE, stderr=None, shell=True)
             output, err = minitor_proc.communicate()
-            cpu_idle_in_percentage = float(output.decode().rstrip())
-            # if it still idle
-            if cpu_idle_in_percentage > 90:
-                terminate_command = "aws ec2 terminate-instances --instance-ids " + instance_id
-                subprocess.call(terminate_command, shell=True,stdout =subprocess.DEVNULL)
-                actual_terminated_instaces_count += 1
+            try:
+                ### this line will trigger exception if output cannot be converted to float -> busy
+                cpu_idle_in_percentage = float(output.decode().rstrip())
+                ### if CPU idle over 90% -> should be idle
+                if cpu_idle_in_percentage > 90:
+                    terminate_command = "aws ec2 terminate-instances --instance-ids " + instance_id
+                    subprocess.call(terminate_command, shell=True,stdout =subprocess.DEVNULL)
+                    actual_terminated_instaces_count += 1
+                ### measure finished escape from loop
+            except:
+                ### service is busy - assume it ran out of memory
+                pass
         print("scale in by {}".format(actual_terminated_instaces_count))
+    # scale out
     elif scale_number > 0:
         print("scale out by {}".format(scale_number))
         launch_instances = "aws ec2 run-instances --image-id " + service_AMI + " --count " + str(scale_number) + " --instance-type t2.large --tag-specifications 'ResourceType=instance,Tags=[{Key=Stack,Value=Minimoto_Service},{Key=Minimoto,Value=Minimoto_Instances}]' --key-name "+key_name+" --security-group-ids "+group_id
-        print(launch_instances)
+        ### launch services based on service AMI
         subprocess.call(launch_instances, shell=True,stdout =subprocess.DEVNULL)
     else:
         print("keep the current scale")
@@ -103,74 +136,98 @@ def adjust_service_instances_pool(key_name,scale_number,idle_running_instance_li
 
 
 def execute_forcedly_scale(key_name,scale_to_num,total_running_instances_ids,service_AMI,sg_id):
+    ### execute the force scale
     print("current running service instances: {}".format(len(total_running_instances_ids)))
     print("scale_to {}".format(scale_to_num))
+    ### calculate the number we need to launch or shut down
     scale_number = scale_to_num - len(total_running_instances_ids)
     if scale_number < 0:
+        ### get the idle list and total running list to shut some/all of them
         idle_running_instance_list,total_running_instances_list = get_idle_running_instances(key_name,total_running_instances_ids)
         forcedly_scale_in(scale_number,total_running_instances_list,idle_running_instance_list)
     elif scale_number > 0:
+        ### scale out is easier
         forcedly_scale_out(key_name,scale_number,service_AMI,sg_id)  
+
 def forcedly_scale_out(key_name,scale_number,service_AMI,sg_id):
     keyfile = key_name + ".pem"
     print("scale out by {}".format(scale_number))
+    ### execute via aws cli
     launch_instances = "aws ec2 run-instances --image-id " + service_AMI + " --count " + str(scale_number) + " --instance-type t2.large --tag-specifications 'ResourceType=instance,Tags=[{Key=Stack,Value=Minimoto_Service},{Key=Minimoto,Value=Minimoto_Instances}]' --key-name "+key_name+" --security-group-ids "+sg_id
     subprocess.call(launch_instances, shell=True,stdout =subprocess.DEVNULL)  
 
 def forcedly_scale_in(scale_number,total_running_instances_list,idle_running_instance_list):
     print("scale in by {}".format(scale_number))
+    ### we will first kill the idle services
     scale_in_count = 0
     for instance_id,instance_dns in idle_running_instance_list:
         if scale_in_count == abs(scale_number):
             break
+        ### execute termination
         terminate_command = "aws ec2 terminate-instances --instance-ids " + instance_id
         subprocess.call(terminate_command, shell=True,stdout =subprocess.DEVNULL)
+        ### remove this one from total_running_instances_list
         total_running_instances_list.remove((instance_id,instance_dns))
+        ### update the count
         scale_in_count +=1
+    ### if it's not enough, we will sadly kill busy ones
     if scale_in_count < abs(scale_number):
         for instance_id,instance_dns in total_running_instances_list:
             if scale_in_count == abs(scale_number):
                 break
+            ### execute termination
             terminate_command = "aws ec2 terminate-instances --instance-ids " + instance_id
             subprocess.call(terminate_command, shell=True,stdout =subprocess.DEVNULL)
+            ### update the count
             scale_in_count +=1
 
 
 
 
 def monitor_ruining_instances(key_name):
+    ###  query to cloudwatch to get statistical report of our running service instances
     keyfile = key_name + ".pem"
+    ### get a list of running service instance id
     service_instances_query = "aws ec2 describe-instances --query 'Reservations[*].Instances[*].InstanceId[]' --filters Name=instance-state-name,Values=running Name=tag-value,Values=Minimoto_Service --output json"
     aws_query_running_instances = Popen(service_instances_query,stdout=subprocess.PIPE, stderr=None, shell=True)
     output, err = aws_query_running_instances.communicate()
+    ### extract information from output
     output_json = json.loads(output.decode().rstrip())
     instance_ids_list = output_json
     print("instance_id/status/utilization(%)")
     sum_utilization = 0
     count_of_cpu_util = 0
+    ### iterate through each instance id
     for instance_id in instance_ids_list:
+        ### individual query
         service_indiv_instance_query = "aws ec2 describe-instances --instance-ids " + instance_id
         service_indiv_instance_query_proc = Popen(service_indiv_instance_query,stdout=subprocess.PIPE, stderr=None, shell=True)
         output, err = service_indiv_instance_query_proc.communicate()
         output_json = json.loads(output.decode().rstrip())
+        ### extract the information from output
         dns_name = output_json['Reservations'][0]['Instances'][0]['NetworkInterfaces'][0]['Association']['PublicDnsName']
         status = output_json['Reservations'][0]['Instances'][0]['State']['Name']
+        ### generate timestamp for further querying cloudwatch
         now_utc = datetime.utcnow()
         format_time = "%Y-%m-%dT%H:%M:%SZ"
         end_time = now_utc.strftime(format_time)
         start_time = (datetime.utcnow() - timedelta(hours=0, minutes=10)).strftime(format_time)
+        ### query cloudwatch
         cloudwatch_monitor_command = "aws cloudwatch get-metric-statistics --namespace AWS/EC2 --metric-name CPUUtilization --statistics Average --dimensions Name=InstanceId,Value=" + instance_id + " --period 300 --start-time " + start_time + " --end-time " + end_time
         cloudwatch_monitor_proc = Popen(cloudwatch_monitor_command,stdout=subprocess.PIPE, stderr=None, shell=True)
         output, err = cloudwatch_monitor_proc.communicate()
         output_json = json.loads(output.decode().rstrip())
         avg_cpu_usage = 0
+        ### get the information of avg CPU utilization
         if len(output_json['Datapoints']) != 0:
             avg_cpu_usage = float("%.2f" % output_json['Datapoints'][0]["Average"])
             print("{}/{}/{}".format(instance_id,status,avg_cpu_usage))
             sum_utilization += avg_cpu_usage
             count_of_cpu_util += 1
+        ### sometimes we will have no result
         else:
             print("{}/{}/Not Yet Initialized".format(instance_id,status))
+    ### calculate avg of all service instances with record
     if count_of_cpu_util != 0:
         avg_utilization_across_instances = float(sum_utilization)/float(count_of_cpu_util)
         print("average utilization(%): {:.2f}".format(avg_utilization_across_instances))
@@ -189,8 +246,7 @@ def main(scale_to_num,status_flag):
         ### automatically scale in-or-out
         if scale_to_num is None:
             ### retrieve sqs length
-            # length_of_sqs = get_sqs_length(data['SQS_URL'])
-            length_of_sqs = 4;
+            length_of_sqs = get_sqs_length(data['SQS_URL'])
             total_running_instances_ids = get_total_running_instance_ids(key_name)
             idle_running_instance_list,total_running_instances_list = get_idle_running_instances(key_name,total_running_instances_ids)
             ### decide to scale in or out
