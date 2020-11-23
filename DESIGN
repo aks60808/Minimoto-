@@ -1,3 +1,4 @@
+
 Extra Files in submitted tar
     - aws_config_script: a shell script for configuring client and watchdog remotely via ssh.
     - aws_config_script_service: a shell script for configuring service instance remotely via ssh.
@@ -85,7 +86,40 @@ Minimoto_cleanup
             as there's no failure occurred in python.
 
 Minimoto_watchdog
+
     #Automatically scaling
+        
     #Forcedly scaling
+
     #Status check
 
+
+Shortcomings 
+
+    #Trancoding Service consume too much memory:
+
+        While testing images close to 100, we will get our transcoding service killed by OOM Killer.
+        Or sometimes watchdog try to run a mpstat command to monitor CPU utilization of Service instances,
+        the output will be "-bash: fork: Cannot allocate memory".
+        These outcome turn out that we need to restrict resource management for transcoding service.
+        However we haven't implemented this since we don't have much time.
+
+    #CPU utilization may not be accurate enough for determination of service productivity
+        
+        So far we measure our instances only by CPU utilization, but cannot really tell which program consume computing power.
+        Might come up with some scenario, the program just hanging there infinitely and doing nothing valuable but watchdog still
+        think this instance is busy converting images to mp4.
+    
+    #No mathematical support of our automatically scaling:
+    
+        We think there should be some researches of modelling scale. But we don't have any time investigate this.
+        Our scaling policy is dumb but fine for small scale but may not be robust under the fact that requests length from SQS
+        will fluctuate periodically in reality.
+
+    #Maximum number of Service instances capped to 7
+
+        We have issue with scaling out over 9 (1 client +　1 watchdog + 7 services) total instances.
+        we have successfully launched the command and get certain response.
+        And also see the new launched instances changing state from pending to running, however after few seconds,
+        the state will be changed to shutting-down then terminated.
+        We suspect there is some policy limiting running instances while using education account
