@@ -10,4 +10,4 @@ sudo apt-get update -y &>/dev/null
 sudo apt-get -y install imagemagick libav-tools sysstat &>/dev/null
 chmod 755 ~/minimoto_service
 chmod 755 ~/transcode.sh
-# (crontab -l 2>/dev/null; echo "*/1 * * * * ~/minimoto_service >> ~/minimoto_log") | crontab -
+(crontab -l 2>/dev/null;echo "PATH=/home/ubuntu/bin:/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin" ;echo "*/1 * * * * ~/minimoto_service >> ~/minimoto_log") | crontab -
