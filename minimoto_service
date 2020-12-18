@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+import os
+import json
+import sys
+import os.path
+from os import path
+import time
+import subprocess
+from subprocess import Popen, PIPE
+
+
+def download_transcode_image(dir_path,input_bucket):
+    download_from_input_bucket = "aws s3 cp  --recursive s3://" + input_bucket + "/"+dir_path+"/ ./"+dir_path
+    print("*** Download images from S3 bucket")
+    subprocess.call(download_from_input_bucket, shell=True,stdout =subprocess.DEVNULL)
+    print("start transcode from images to mp4")
+    transcode = "./transcode.sh ./"+dir_path+" "+dir_path+".mp4"
+    os.system(transcode)
+    print("*** Transcode finish")
+
+
+def receive_request():
+    print("receiving request from SQS")
+    with open('./minimoto_info.json') as json_file:
+        data = json.load(json_file)
+    receive_request = "aws sqs receive-message --queue-url " + data["SQS_URL"] + "  --max-number-of-messages 1"
+    receive_request_proc = Popen(receive_request,stdout=subprocess.PIPE, stderr=None, shell=True)
+    output, err = receive_request_proc.communicate()
+    if output.decode() == '': 
+        # print("No request in the queue, Exit")
+        # no request return
+        sys.exit("No request in the queue. Exit")
+    else:
+        rq_data = json.loads(output.decode().rstrip())
+        receive_handle = rq_data["Messages"][0]["ReceiptHandle"]
+        dir_path = rq_data["Messages"][0]["Body"]
+        # print("*** receive_handle ={}".format(receive_handle))
+        print("*** message_body = {}".format(dir_path))
+        download_transcode_image(dir_path,data["S3_INPUT"])
+
+        # check if the request had been completed by other instances
+        ifexist = "aws s3 ls s3://"+ data["S3_OUTPUT"]+" | egrep " + dir_path + " | wc -l | sed -e 's/[ ]*//' > ifexist"
+        os.system(ifexist)
+        ifexist_outcome = open("./ifexist")
+        outcome = ifexist_outcome.readline().rstrip()
+        if outcome == '0':
+            # no instances complete the request
+            # upload the mp4 file and delete the request
+
+            upload_output_bucket = "aws s3 cp ./"+dir_path+".mp4 s3://"+ data["S3_OUTPUT"] + "/"+dir_path+".mp4"
+            os.system(upload_output_bucket)
+            print("upload mp4 file to s3 output bucket")
+
+        # delete all download images
+        delete_request = "aws sqs delete-message --queue-url " + data["SQS_URL"] + " --receipt-handle " +receive_handle 
+        os.system(delete_request)
+        print("request deleted")
+        delete_images = "rm -r ./"+dir_path+"*"
+        os.system(delete_images)
+        print("*** Delete all local images and mp4 file")
+
+        # process_request
+
+def check_only_service():
+    check_service = "ps -aux | egrep 'python3 /home/ubuntu/minimoto_service' | wc -l "
+    check_service_proc = Popen(check_service,stdout=subprocess.PIPE, stderr=None, shell=True)
+    output, err = check_service_proc.communicate()
+    status = output.decode().rstrip()
+    # print(status)
+    if status == '3':
+        print("*** start receive request")
+    else:
+        print("Have other service process already")
+        sys.exit("Have other service process already.Exit")
+            
+
+def main():
+    # print("*** checking if other service program already exists....")
+    
+    check_only_service()
+    receive_request()
+
+
+if __name__ == "__main__":
+    main()

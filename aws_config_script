@@ -1,0 +1,8 @@
+#!/bin/bash
+sudo apt install unzip &>/dev/null
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" &>/dev/null
+unzip awscliv2.zip &>/dev/null
+sudo ./aws/install &>/dev/null
+mkdir ~/.aws &>/dev/null
+mv ./credentials ~/.aws/credentials &>/dev/null
+mv ./config ~/.aws/config &>/dev/null
