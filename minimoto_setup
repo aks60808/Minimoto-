@@ -8,7 +8,6 @@ from subprocess import Popen, PIPE
 from os.path import expanduser
 def create_sqs():
     ### create SQS ###
-
     ### SQS name setup
     SQS_name = "unsw-9243-group22-minimoto-sqs"
     ### create sqs via aws cli
@@ -54,6 +53,7 @@ def configure_watchdog_instance(keyfile,watchdog_dns):
     ### configure watchdog remotely with bash script via ssh
     watchdog_ssh_script = "ssh -o StrictHostKeyChecking=no -q -i "+keyfile+" ubuntu@"+watchdog_dns+" < ./aws_config_script"
     subprocess.call(watchdog_ssh_script, shell=True,stdout =subprocess.DEVNULL)
+
     
 
 
